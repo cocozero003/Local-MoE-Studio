@@ -135,6 +135,38 @@ def unzip_safe(zip_path,target,cancel):
                 shutil.copyfileobj(src,dst,1024*1024)
 
 
+
+def publish_engine_version(staged_dir, base, mode, tag):
+    """Promote a fully staged engine without touching an installed/running engine.
+
+    llama-server.exe and CUDA DLLs are locked by Windows while inference runs.
+    Installing versioned siblings avoids renaming a live engine (WinError 32).
+    A same-filesystem directory rename makes the new version visible together.
+    """
+    if mode not in ('cuda12', 'cuda13', 'cpu'):
+        raise ValueError('Unsupported engine mode')
+    if not isinstance(tag, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,79}', tag):
+        raise ValueError('Unsafe release tag')
+    staged_dir = Path(staged_dir)
+    base = Path(base)
+    if not (staged_dir / 'llama-server.exe').is_file():
+        raise IOError('Staged llama-server.exe is missing')
+    final = base / ('llama.cpp-' + mode + '-' + tag)
+    installed = final / 'llama-server.exe'
+    if final.exists():
+        if installed.is_file():
+            return str(installed)
+        raise IOError('An incomplete engine directory already exists: ' + str(final))
+    try:
+        staged_dir.rename(final)
+    except FileExistsError:
+        # Another installer may have published the same version first.
+        if installed.is_file():
+            return str(installed)
+        raise
+    return str(installed)
+
+
 def install_engine(base, mode, progress, cancel, releases=None):
     """Install alongside the app, returns (exe_path, tag, checked_asset_count)."""
     if os.name != 'nt':
@@ -171,14 +203,5 @@ def install_engine(base, mode, progress, cancel, releases=None):
             if not dest.exists(): shutil.copy2(f,dest)
         exe=target/'llama-server.exe'
         if not exe.is_file(): raise IOError('llama-server.exe missing after extraction')
-        final=base / ('llama.cpp-'+mode)
-        old=base / ('llama.cpp-'+mode+'-backup')
-        if old.exists(): shutil.rmtree(old)
-        if final.exists(): final.rename(old)
-        try:
-            shutil.move(str(target),str(final))
-        except Exception:
-            if old.exists() and not final.exists(): old.rename(final)
-            raise
-        if old.exists(): shutil.rmtree(old)
-        return str(final/'llama-server.exe'),tag,verified
+        installed = publish_engine_version(target, base, mode, tag)
+        return installed, tag, verified

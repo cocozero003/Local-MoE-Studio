@@ -385,12 +385,27 @@ class LocalMoEStudio(PriorUI):
         self.hub_search_btn.configure(state='normal')
 
     def _check_engine_installed(self):
-        local = USER_DATA / 'engine' / 'llama.cpp-cuda12' / 'llama-server.exe'
-        if local.is_file() and not Path(self.vars['server'].get()).is_file():
-            self.vars['server'].set(str(local))
-            self.save_settings()
+        # Earlier releases used an unversioned folder. New versions coexist.
+        engine_dir = USER_DATA / 'engine'
+        if not Path(self.vars['server'].get()).is_file():
+            candidates = list(engine_dir.glob('llama.cpp-cuda12*/llama-server.exe'))
+            candidates += list(engine_dir.glob('llama.cpp-cuda13*/llama-server.exe'))
+            candidates += list(engine_dir.glob('llama.cpp-cpu*/llama-server.exe'))
+            if candidates:
+                newest = max(candidates, key=lambda p: p.stat().st_mtime)
+                self.vars['server'].set(str(newest))
+                self.save_settings()
         path=Path(self.vars['server'].get())
         self.engine_state.set('Installed: '+str(path) if path.is_file() else 'Not installed. Click Install / Update llama.cpp.')
+
+    def start_server(self):
+        if self.engine_installing:
+            messagebox.showwarning(
+                'Engine update in progress',
+                'Wait for the llama.cpp installation to finish before starting a model.'
+            )
+            return
+        return super().start_server()
 
     def start_engine_install(self):
         if self.engine_installing:

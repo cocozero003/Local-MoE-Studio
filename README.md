@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.7.3 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.7.4 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Installed GGUF library (v0.7.3)
 
@@ -20,6 +20,18 @@ No local model files, downloaded engines, or conversations are deleted or moved.
 The desktop chat editor now remains pinned to the bottom of the Chat screen, even in smaller windows or at higher display scaling. Type into **Message your local model** and click **Send** or press Enter; Shift+Enter inserts a line break. **Attach text** inserts the contents of a local UTF-8 text file up to 16 KB into the prompt. Larger documents should use the Team Hub library. This version does not implement voice input.
 
 The fixed composer and existing chat sessions work with the same settings and downloaded GGUF models. Windows/NVIDIA end-to-end validation is still required.
+
+## Safe engine updates (v0.7.4)
+
+Fixes Windows **WinError 32** caused by attempting to rename the existing `llama.cpp-cuda12` directory while `llama-server.exe` or a CUDA DLL is in use.
+
+- New downloads install in a separate versioned folder (for example, `llama.cpp-cuda12-b11580`), without renaming or removing the version being used.
+- A release is published only after all binary archives have been downloaded, extracted, and validated; the app then switches its selected executable path.
+- The desktop app prevents starting a model during an engine installation and refuses installing/updating an engine while its own model server is active.
+- Older engine directories, saved models, and conversations are preserved. Running older engines continue to work.
+- This does **not** restart or interrupt a running external llama.cpp process. Stop active inference before updating if you want to switch immediately.
+
+After updating the source, close the app, reopen it via `START_WINDOWS.bat`, and load your existing GGUF using **Models → Installed models → Use and start**. You do not need to click **Install / Update llama.cpp** to chat if the installed server is already working.
 
 ## Features
 
