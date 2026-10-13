@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-moe-studio"
+version = "0.5.0"
+description = "A beginner-friendly local llama.cpp GUI with MoE CPU offloading"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["llama.cpp", "MoE", "local AI", "GGUF", "GPU offloading"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.scripts]
+local-moe-studio = "localmoestudio.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
