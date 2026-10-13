@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.5.0 alpha / developer preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.5.1 alpha / developer preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Features
 
@@ -17,6 +17,14 @@
 ## Screenshots
 
 ![Settings interface](docs/images/settings.png)
+
+## Installer fix (v0.5.1)
+
+The one-click installer now detects official llama.cpp Windows packages from upstream GitHub **pre-release** builds (such as `b11580`). It also recognizes both historical and current CUDA runtime ZIP filenames and pairs the exact CUDA versions. v0.5.0 incorrectly skipped these builds, producing `No matching official Windows archive found`.
+
+**To update:** Close Local MoE Studio, replace the app files with the latest GitHub source, and restart via `START_WINDOWS.bat`. Your GGUF models and chat history are stored in the Windows per-user application-data folder and should remain intact. Retry **Models → Install / Update llama.cpp**, selecting `cuda12`.
+
+This is a selector/test fix; the full CUDA download and NVIDIA inference still require on-device validation.
 
 ## Quick start (Windows)
 

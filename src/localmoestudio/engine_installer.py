@@ -12,36 +12,69 @@ import urllib.error
 import zipfile
 from pathlib import Path
 
-API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=15'
+API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30'
 UA = 'LocalMoEStudio/4 (+https://github.com/ggml-org/llama.cpp)'
 
 
 def choose_release_assets(releases, mode='cuda12'):
+    """Find official Windows x64 binaries and their matching CUDA runtime ZIP.
+
+    llama.cpp regularly publishes working bNNNNN builds as GitHub pre-releases.
+    Excluding pre-releases breaks the one-click installer. Skip drafts only.
+
+    Current releases use cudart-llama-bin-win-cuda-... while some older
+    releases used cudart-llama-bNNNN-bin-win-cuda-... . Support both forms.
+    """
     if mode not in ('cuda12', 'cuda13', 'cpu'):
         raise ValueError('Unknown engine type')
+
+    major = '12' if mode == 'cuda12' else '13'
+    main_pattern = re.compile(
+        r'^llama-(?:b\d+-)?bin-win-cuda-(12|13)(?:\.(\d+))?-x64\.zip$',
+        re.IGNORECASE,
+    )
+    runtime_pattern = re.compile(
+        r'^cudart-llama-(?:b\d+-)?bin-win-cuda-(12|13)(?:\.(\d+))?-x64\.zip$',
+        re.IGNORECASE,
+    )
+    cpu_pattern = re.compile(r'^llama-(?:b\d+-)?bin-win-cpu-x64\.zip$', re.IGNORECASE)
+
     for release in releases:
-        if release.get('draft') or release.get('prerelease'):
+        if release.get('draft'):
             continue
-        assets = release.get('assets', [])
-        names = [(a, a.get('name','').lower()) for a in assets]
+        assets = [asset for asset in release.get('assets', [])
+                  if isinstance(asset.get('name'), str)]
         if mode == 'cpu':
-            candidates = [a for a,n in names if re.search(r'^(?:llama-)?b\d+-bin-win-cpu-x64\.zip$', n)]
-            if not candidates:
-                candidates = [a for a,n in names if 'bin-win-cpu-x64.zip' in n and 'cudart' not in n]
-            if candidates:
-                return release.get('tag_name', 'unknown'), [candidates[0]]
-        else:
-            digit = '12' if mode=='cuda12' else '13'
-            main = [a for a,n in names if ('bin-win-cuda-' + digit) in n and n.endswith('-x64.zip') and not n.startswith('cudart-')]
-            runtime = [a for a,n in names if n.startswith('cudart-') and ('bin-win-cuda-' + digit) in n and n.endswith('-x64.zip')]
-            if main and runtime:
-                # Prefer matching minor CUDA versions.
-                def ver(a):
-                    m = re.search(r'cuda-(\d+(?:\.\d+)?)', a['name'].lower())
-                    return m.group(1) if m else ''
-                runtime = [a for a in runtime if ver(a)==ver(main[0])] or runtime
-                return release.get('tag_name','unknown'), [main[0], runtime[0]]
-    raise RuntimeError('No matching official Windows archive found. Try another backend or check GitHub releases.')
+            cpus = [a for a in assets if cpu_pattern.fullmatch(a['name'])]
+            if cpus:
+                return release.get('tag_name', 'unknown'), [cpus[0]]
+            continue
+
+        # Match the FULL CUDA version; never combine 12.4 binaries with 12.8 DLLs.
+        mains = {}
+        runtimes = {}
+        for asset in assets:
+            name = asset['name']
+            main_match = main_pattern.fullmatch(name)
+            runtime_match = runtime_pattern.fullmatch(name)
+            if main_match and main_match.group(1) == major:
+                version = (main_match.group(1), main_match.group(2) or '0')
+                mains.setdefault(version, asset)
+            elif runtime_match and runtime_match.group(1) == major:
+                version = (runtime_match.group(1), runtime_match.group(2) or '0')
+                runtimes.setdefault(version, asset)
+
+        common = mains.keys() & runtimes.keys()
+        if common:
+            version = max(common, key=lambda v: (int(v[0]), int(v[1])))
+            return release.get('tag_name', 'unknown'), [mains[version], runtimes[version]]
+
+    engine = {'cuda12': 'NVIDIA CUDA 12', 'cuda13': 'NVIDIA CUDA 13', 'cpu': 'CPU'}[mode]
+    raise RuntimeError(
+        f'No matching official Windows x64 {engine} packages were found '
+        'in the checked GitHub releases. Check your network and '
+        'https://github.com/ggml-org/llama.cpp/releases for available builds.'
+    )
 
 
 def releases_json():

@@ -34,6 +34,48 @@ class AppTests(unittest.TestCase):
         self.assertEqual(validate_repo('Qwen/Qwen3-30B-A3B-GGUF'),'Qwen/Qwen3-30B-A3B-GGUF')
         for bad in ['../etc','a//b','http://example.com','a/b/c']:
             with self.assertRaises(ValueError):validate_repo(bad)
+    def test_current_official_prerelease_filenames(self):
+        # Official b11580 uses a versioned binary and an unversioned cudart ZIP.
+        releases = [{'tag_name': 'b11580', 'draft': False, 'prerelease': True, 'assets': [
+            {'name': 'llama-b11580-bin-win-cuda-12.4-x64.zip'},
+            {'name': 'cudart-llama-bin-win-cuda-12.4-x64.zip'},
+            {'name': 'llama-b11580-bin-win-cuda-13.4-x64.zip'},
+            {'name': 'cudart-llama-bin-win-cuda-13.4-x64.zip'},
+            {'name': 'llama-b11580-bin-win-cpu-x64.zip'},
+            {'name': 'llama-b11580-bin-win-cuda-13.4-arm64.zip'},
+        ]}]
+        for mode, expected_main in [
+            ('cuda12', 'llama-b11580-bin-win-cuda-12.4-x64.zip'),
+            ('cuda13', 'llama-b11580-bin-win-cuda-13.4-x64.zip'),
+            ('cpu', 'llama-b11580-bin-win-cpu-x64.zip'),
+        ]:
+            with self.subTest(mode=mode):
+                tag, assets = choose_release_assets(releases, mode)
+                self.assertEqual(tag, 'b11580')
+                self.assertEqual(assets[0]['name'], expected_main)
+                self.assertEqual(len(assets), 1 if mode == 'cpu' else 2)
+
+    def test_release_selector_rejects_incorrect_cuda_pair(self):
+        releases = [{'tag_name': 'b11580', 'prerelease': True, 'assets': [
+            {'name': 'llama-b11580-bin-win-cuda-12.4-x64.zip'},
+            {'name': 'cudart-llama-bin-win-cuda-12.8-x64.zip'},
+        ]}]
+        with self.assertRaisesRegex(RuntimeError, 'No matching'):
+            choose_release_assets(releases, 'cuda12')
+
+    def test_draft_is_ignored_and_falls_back_to_older_release(self):
+        releases = [
+            {'tag_name': 'bad-draft', 'draft': True, 'assets': [
+                {'name': 'llama-b11580-bin-win-cpu-x64.zip'}
+            ]},
+            {'tag_name': 'b11577', 'prerelease': True, 'assets': [
+                {'name': 'llama-b11577-bin-win-cpu-x64.zip'}
+            ]},
+        ]
+        tag, assets = choose_release_assets(releases, 'cpu')
+        self.assertEqual(tag, 'b11577')
+        self.assertEqual(len(assets), 1)
+
     def test_release_selector(self):
         releases=[{'tag_name':'b9999','draft':False,'prerelease':False,'assets':[
             {'name':'llama-b9999-bin-win-cuda-12.4-x64.zip'},
