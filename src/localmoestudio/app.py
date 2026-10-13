@@ -65,6 +65,7 @@ class LocalMoEStudio(PriorUI):
         self.after(1600, self._schedule_hardware)
         self.navigate('models')
         self._create_profiles_bar()
+        self._create_runner_controls()
         self._create_session_panel()
         self.team_hub_server = None
         self._create_team_hub_launcher()
@@ -713,11 +714,79 @@ class LocalMoEStudio(PriorUI):
                      values=list(PROFILES)).pack(side='left', padx=6)
         ttk.Button(bar, text='Apply preset', command=self._apply_easy_profile).pack(side='left', padx=5)
         ttk.Button(bar, text='Check model fit', command=self._recommend_model).pack(side='left')
+        self.settings_stop_button = ttk.Button(bar, text='Stop model',
+                                               command=self._stop_model_from_ui)
+        self.settings_stop_button.pack(side='right', padx=(10, 0))
+
+    def _create_runner_controls(self):
+        """Keep the active-model stop control available on every desktop page."""
+        self.runner_state = tk.StringVar(value='Checking model...')
+        panel = tk.Frame(self.sidebar, bg=SIDE)
+        panel.pack(after=self.state_label, fill='x', padx=13, pady=(4, 3))
+        self.runner_state_label = tk.Label(panel, textvariable=self.runner_state,
+                                           font=('Segoe UI', 9), bg=SIDE, fg=MUTED,
+                                           justify='left', anchor='w')
+        self.runner_state_label.pack(fill='x', pady=(0, 5))
+        self.sidebar_stop_button = ttk.Button(panel, text='Stop model',
+                                              command=self._stop_model_from_ui)
+        self.sidebar_stop_button.pack(fill='x')
+        self.after(150, self._refresh_runner_controls)
+
+    def _model_is_running(self):
+        process = self.process
+        return process is not None and process.poll() is None
+
+    def _refresh_runner_controls(self):
+        """Reflect running and stopped states even if the server quits itself."""
+        try:
+            running = self._model_is_running()
+            busy = bool(self.busy)
+            state = 'normal' if running else 'disabled'
+            self.sidebar_stop_button.configure(state=state)
+            self.settings_stop_button.configure(state=state)
+            self.runner_state.set(
+                'Model running' + (' - responding' if busy else '')
+                if running else 'Model stopped'
+            )
+            self.runner_state_label.configure(fg='#16803D' if running else MUTED)
+            self.after(900, self._refresh_runner_controls)
+        except tk.TclError:
+            return
+
+    def _stop_model_from_ui(self, confirm_if_busy=True):
+        """Stop only the llama.cpp server launched by this app, not Ollama."""
+        if not self._model_is_running():
+            self.runner_state.set('Model stopped')
+            return True
+        if self.busy and confirm_if_busy:
+            if not messagebox.askyesno(
+                'Stop model',
+                'The model is generating a response. Stop it now? '
+                'The current response will be interrupted.'
+            ):
+                return False
+        try:
+            self.stop_server()
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('Cannot stop model', str(exc))
+            return False
+        self.runner_state.set('Model stopped')
+        self.sidebar_stop_button.configure(state='disabled')
+        self.settings_stop_button.configure(state='disabled')
+        self.status.set('Model stopped. You can change settings and restart it.')
+        return True
 
     def _apply_easy_profile(self):
-        if self.process and self.process.poll() is None:
-            messagebox.showinfo('Model running', 'Stop the server before changing model memory settings.')
-            return
+        if self._model_is_running():
+            if not messagebox.askyesno(
+                'Stop model and apply preset?',
+                'Memory settings cannot be changed while the model is running. '
+                'Stop the model now and apply the selected preset? '
+                'You can restart it from Models.'
+            ):
+                return
+            if not self._stop_model_from_ui(confirm_if_busy=False):
+                return
         profile = self.profile_choice.get()
         apply_profile(self.vars, profile)
         self.save_settings()

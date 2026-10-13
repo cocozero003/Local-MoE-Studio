@@ -2,7 +2,25 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.7.5 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.7.6 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+
+## Visible Stop model controls (v0.7.6)
+
+The desktop now exposes a **Stop model** button in the sidebar (available on
+Chat, Models, Settings, and Logs) and in the pinned **Easy setup** toolbar at the
+bottom of Settings. Both buttons indicate disabled when this application has no
+running model and enabled when its managed llama.cpp server is running. The
+sidebar shows **Model running** or **Model stopped**.
+
+Applying a different easy preset while the model is active now offers to stop
+the managed model and apply the settings, rather than displaying a dead-end
+instruction with no visible way to stop. Stopping during an active generation
+asks for confirmation. The UI controls stop only the llama.cpp process launched
+by this application; they do not stop Ollama or other unrelated server processes.
+
+After stopping, select **Models → Installed models → Use and start** to restart
+with new settings. Existing GGUF downloads, conversations and installed llama.cpp
+engines remain unchanged.
 
 ## Installed GGUF library (v0.7.3)
 
