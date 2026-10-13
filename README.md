@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.6.1 alpha / developer preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.7.0 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Features
 
@@ -17,23 +17,38 @@
 - NVIDIA memory/status information and server log window.
 - Python standard-library runtime for source use; **no Docker**.
 
+## Team Hub (new in v0.7.0)
+
+The optional **Team Hub** adds a browser interface for multiple local users while keeping **llama.cpp** as the inference engine. It does not use Docker, Ollama, or cloud model APIs.
+
+- Desktop **Open Team Hub** button; optional explicit **Share on private LAN** checkbox.
+- Separate administrator/member accounts, authenticated sessions, local chat history, and per-user document isolation.
+- Private document upload/search for TXT, Markdown, DOCX and optional text-based PDFs (requires `pypdf`). Document retrieval is **keyword/trigram-based**, not yet semantic vector RAG.
+- Protected OpenAI-compatible `/v1/models` and `/v1/chat/completions` endpoints with personal bearer API keys; response streaming supported.
+- One active generation at a time, with bounded wait for shared limited-VRAM hardware.
+- Headless launch scripts that start llama.cpp from saved desktop settings and serve the same browser UI.
+
+**Start:** Open a GGUF model in the Windows desktop app, click **Open Team Hub**, then create an administrator account on the host PC. By default it is available only at `http://127.0.0.1:8765`. For details read [Team Hub setup](docs/TEAM_HUB.md) and [API guide](docs/API.md).
+
+**Security caution:** Optional LAN mode uses unencrypted HTTP. It is intended for a **trusted private LAN pilot only**, not public internet access or sensitive regulated documents. A security review, TLS, robust auditing, SSO and data-at-rest encryption are not yet complete. **Do not expose ports 8765 or 8081 to the internet.**
+
 ## Screenshots
 
 ![Settings interface](docs/images/settings.png)
-
-## Settings text readability fix (v0.6.1)
-
-Fixes truncated help descriptions and overlapping settings rows on Windows high-DPI displays (including 125%, 150% and 200% scaling). The Settings form now sizes each row to its content instead of constraining the description to the height of the adjacent input. Helper text also uses a larger readable font and additional vertical spacing. No llama.cpp configuration, model files, or chat history are changed.
-
-To update: close the app, download the latest source, extract it into a new folder, and run `START_WINDOWS.bat`. The saved settings and models in your Windows local application-data folder will remain in place.
-
-The layout is covered by a Tk geometry regression test at three display-scaling levels; tests run with a graphical display and skip when CI is headless. Windows hardware validation is still pending.
 
 ## Model discovery update (v0.6.0)
 
 The original model browser had a closed four-model Qwen list. This version adds public Hugging Face GGUF discovery, model-family filtering, free-text search, sorting, and locally saved catalog metadata. New GGUF repos can appear on the next launch without changing the app code. **Startup refresh transfers only model metadata, not model weights.** Searches require internet access; cached results remain usable offline. Gated and private repositories are excluded from the automatic catalog, and model compatibility/licensing should be checked before downloading.
 
 The starter catalog includes tested repository URLs for examples from Qwen, Gemma, Llama, Mistral, DeepSeek, Microsoft Phi and GPT-OSS. They are examples, not endorsements or a guarantee that the repository supports your hardware. Downloads and llama.cpp inference have not been end-to-end validated on Windows/NVIDIA hardware.
+
+## Settings readability and GPU-first preset (v0.6.1)
+
+- Fix clipped settings labels on high-DPI Windows displays. The settings row height now follows the full height of its helper text, and mouse-wheel scrolling is supported.
+- The default configuration for new installs is **GPU first (RAM fallback)**. The preset uses automatic GPU layers (`-ngl auto`), llama.cpp memory fitting (`-fit on`), an initial 512 MiB headroom (`-fitt 512`), 4096 context and Q8 KV cache. GPU layers and CPU RAM usage are determined by llama.cpp and the actual hardware.
+- **Existing installations keep saved settings.** Open Settings, select **GPU first (RAM fallback)**, click **Apply preset**, and restart the model to adopt the new configuration.
+- **Large MoE (low VRAM)** remains a separate preset that forces MoE expert tensors into CPU RAM (`--cpu-moe`). Because that can leave GPU memory unused, it is *not* the default maximize-VRAM preset.
+- A 512 MiB reserve is a starting point, not a guarantee of zero out-of-memory errors. Raise it to 1024 MiB or reduce context length if needed. Close other GPU applications first.
 
 ## Installer fix (v0.5.1)
 
@@ -94,6 +109,20 @@ py -3 -m unittest discover -s tests -v
 
 On Windows, `scripts\build_windows.bat` creates an **unsigned developer EXE** with PyInstaller. This is not a one-click installer suitable for public release.
 
+## Feature comparison and release status
+
+| Capability | v0.7 availability |
+| --- | --- |
+| GUI / local chat / model downloader / GPU offloading / MoE controls | Existing desktop features |
+| Hugging Face GGUF catalog refresh | Existing desktop feature |
+| Multi-user browser chat / private sessions / personal API keys | New Team Hub alpha |
+| Document chat | Keyword-based retrieval (TXT/MD/DOCX, optional text PDF) |
+| OpenAI-compatible local API and Python integration | Basic chat and model endpoints |
+| Offline inference and optional headless operation | Supported with downloaded engine/model |
+| Docker | Not required |
+| Native no-Python signed installer | Not yet available |
+| Production-grade HTTPS, SSO, vector RAG | Not yet available |
+
 ## Roadmap
 
 - [ ] Fully bundled and signed Windows installer
@@ -105,7 +134,7 @@ On Windows, `scripts\build_windows.bat` creates an **unsigned developer EXE** wi
 
 ## Documents
 
-[Architecture](docs/ARCHITECTURE.md) · [Product audit](docs/PRODUCT_AUDIT.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Contributing](docs/CONTRIBUTING.md) · [Security](SECURITY.md)
+[Team Hub](docs/TEAM_HUB.md) · [API](docs/API.md) · [Architecture](docs/ARCHITECTURE.md) · [Product audit](docs/PRODUCT_AUDIT.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Contributing](docs/CONTRIBUTING.md) · [Security](SECURITY.md)
 
 ## Licensing
 

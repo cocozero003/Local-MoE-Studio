@@ -64,6 +64,56 @@ class LocalMoEStudio(PriorUI):
         self.navigate('models')
         self._create_profiles_bar()
         self._create_session_panel()
+        self.team_hub_server = None
+        self._create_team_hub_launcher()
+
+    def _create_team_hub_launcher(self):
+        panel = tk.Frame(self.sidebar, bg=SIDE)
+        panel.pack(fill='x', padx=10, pady=(12, 4))
+        tk.Label(panel, text='TEAM MODE', bg=SIDE, fg=MUTED,
+                 font=('Segoe UI', 9, 'bold')).pack(anchor='w', pady=(0, 6))
+        ttk.Button(panel, text='Open Team Hub',
+                   command=self._open_team_hub).pack(fill='x')
+        self.share_lan = tk.BooleanVar(value=False)
+        ttk.Checkbutton(panel, text='Share on private LAN',
+                        variable=self.share_lan).pack(anchor='w', pady=(8, 0))
+        tk.Label(panel, text='Separate accounts, private chats and documents.',
+                 bg=SIDE, fg=MUTED, wraplength=185, justify='left',
+                 font=('Segoe UI', 8)).pack(anchor='w', pady=(6, 0))
+
+    def _open_team_hub(self):
+        from .team_server import start_team_server
+        port = 8765
+        lan = bool(self.share_lan.get())
+        if lan and not messagebox.askyesno('Enable LAN sharing',
+                'The Team Hub will be reachable over UNENCRYPTED HTTP on the local network.\n\n'
+                'Use a trusted private network only. Do not forward this port to the internet.\n'
+                'Continue?'):
+            return
+        if self.team_hub_server is None:
+            try:
+                self.team_hub_server = start_team_server(
+                    host='0.0.0.0' if lan else '127.0.0.1',
+                    port=port, backend_port=int(self.vars['port'].get()), lan=lan)
+                threading.Thread(target=self.team_hub_server.serve_forever,
+                                 daemon=True, name='LocalMoE-TeamHub').start()
+            except (OSError, ValueError) as exc:
+                messagebox.showerror('Cannot start Team Hub', str(exc))
+                self.team_hub_server = None
+                return
+        elif self.team_hub_server.lan != lan:
+            messagebox.showinfo('Restart needed',
+                'Restart Local MoE Studio to change Team Hub LAN access.')
+        webbrowser.open('http://127.0.0.1:8765')
+        self.status.set('Team Hub running at http://127.0.0.1:8765')
+
+    def close(self):
+        # Leave saved GGUF models and user files untouched on exit.
+        if self.team_hub_server is not None:
+            self.team_hub_server.shutdown()
+            self.team_hub_server.server_close()
+            self.team_hub_server = None
+        super().close()
 
     def build_models(self):
         f = self.views['models']
@@ -542,10 +592,10 @@ class LocalMoEStudio(PriorUI):
         bar.pack(side='bottom', fill='x')
         tk.Label(bar, text='Easy setup:', bg='#F4F4F4', fg='#222222',
                  font=('Segoe UI', 10, 'bold')).pack(side='left', padx=(0, 8))
-        self.profile_choice = tk.StringVar(value='Large MoE (low VRAM)')
-        ttk.Combobox(bar, textvariable=self.profile_choice, state='readonly', width=27,
+        self.profile_choice = tk.StringVar(value='GPU first (RAM fallback)')
+        ttk.Combobox(bar, textvariable=self.profile_choice, state='readonly', width=29,
                      values=list(PROFILES)).pack(side='left', padx=6)
-        ttk.Button(bar, text='Apply recommended settings', command=self._apply_easy_profile).pack(side='left', padx=5)
+        ttk.Button(bar, text='Apply preset', command=self._apply_easy_profile).pack(side='left', padx=5)
         ttk.Button(bar, text='Check model fit', command=self._recommend_model).pack(side='left')
 
     def _apply_easy_profile(self):

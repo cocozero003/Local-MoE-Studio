@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Local MoE Studio | Team Hub</title><link rel="stylesheet" href="/app.css" defer><script src="/app.js" defer></script></head>
+<body><section id="auth-view" class="auth-screen"><div class="auth-card"><div class="brand">Local MoE Studio</div>
+<p class="sub">Private local AI, shared with your team</p><h1 id="auth-title">Sign in</h1>
+<p id="auth-desc">Enter your account credentials.</p><form id="auth-form">
+<label for="login-name">Username</label><input id="login-name" autocomplete="username" minlength="3" maxlength="30" required>
+<label for="login-pass">Password</label><input id="login-pass" type="password" autocomplete="current-password" minlength="12" required>
+<button type="submit" class="primary full" id="auth-action">Sign in</button></form>
+<div class="feedback" id="auth-error" role="alert"></div><small>Inference and private documents remain on the server computer. Login traffic is not encrypted on plain HTTP LAN.</small></div></section>
+<div id="application" class="app hidden"><aside class="nav">
+<div class="brand">Local MoE Studio</div><div class="tagline">Team Hub</div>
+<button class="nav-btn current" data-page="chat">Chat</button>
+<button class="nav-btn" data-page="documents">My documents</button>
+<button class="nav-btn" data-page="settings">API access</button>
+<button class="nav-btn" id="admin-nav" data-page="users">Team members</button>
+<div class="nav-divider"></div><button class="secondary full" id="new-chat">New conversation</button>
+<div class="mini-label">RECENT CONVERSATIONS</div><div id="chat-list" class="chat-list"></div>
+<div class="nav-bottom"><div class="user" id="account-name"></div><button id="logout" class="text-button">Sign out</button></div>
+</aside><main class="main"><header class="topbar"><div><span id="page-title">Chat</span><span class="mode-label">Local inference</span></div>
+<div class="status"><span class="dot" id="model-dot"></span><span id="model-state">Checking model</span></div></header>
+<div id="page-chat" class="page chat-page"><div id="chat-history" class="messages"></div>
+<div class="composer"><label class="doc-toggle"><input type="checkbox" id="use-documents"> Search my uploaded documents</label>
+<textarea id="message" rows="3" placeholder="Ask a question... (Ctrl+Enter to send)"></textarea>
+<div class="composer-actions"><span id="send-status">Ready</span><button class="primary" id="send-message">Send</button></div></div>
+</div>
+<div id="page-documents" class="page content-page hidden"><h1>My documents</h1>
+<p>Documents are indexed locally and accessible only to your account. Supported: TXT, Markdown, DOCX and text-based PDFs.</p>
+<div class="panel"><label class="file-label">Select a document <input type="file" id="document-file" accept=".txt,.md,.docx,.pdf"></label>
+<button id="upload-doc" class="primary">Upload and index</button><span id="upload-state" class="info"></span></div>
+<h2>Uploaded files</h2><div id="doc-list" class="rows"></div><h2>Test document search</h2>
+<div class="inline"><input type="search" id="doc-query" placeholder="Search your private document collection"><button id="search-doc">Search</button></div><div id="doc-results" class="rows"></div></div>
+<div id="page-settings" class="page content-page hidden"><h1>Local API</h1><p>Use an OpenAI-compatible API with Python or other apps. API keys are shown only once. The llama.cpp backend itself remains on localhost.</p>
+<div class="panel"><button id="generate-key" class="primary">Create API key</button><div id="new-key" class="secret hidden"></div>
+<p class="info">Endpoint: <code id="endpoint">http://127.0.0.1:8765/v1</code></p></div><h2>My API keys</h2><div id="keys-list" class="rows"></div>
+<div class="notice">Keep keys private. LAN mode uses unencrypted HTTP: use only on a trusted network. Do not publish the server port to the internet.</div></div>
+<div id="page-users" class="page content-page hidden"><h1>Team members</h1><p>Create separate accounts to isolate each person's chats and documents.</p>
+<form id="add-user-form" class="panel inline-form"><label>Username<input id="new-username" required minlength="3" maxlength="30"></label>
+<label>Temporary password (12+ characters)<input id="new-password" type="password" required minlength="12"></label>
+<button type="submit" class="primary">Add member</button></form><h2>Accounts</h2><div id="users-list" class="rows"></div></div>
+<div class="toast hidden" id="toast"></div></main></div></body></html>
