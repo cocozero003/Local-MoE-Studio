@@ -64,13 +64,18 @@ def build_chat(self):
     opts = tk.Frame(compose_shell, bg=PANEL)
     opts.pack(fill='x', padx=12, pady=(0, 11))
     ttk.Button(opts, text='Attach text', command=self.attach_text_file).pack(side='left')
+    self.chat_continue_button = ttk.Button(opts, text='Continue answer',
+                                           command=self.continue_answer, state='disabled')
+    self.chat_continue_button.pack(side='left', padx=(8, 0))
     tk.Label(opts, text='Enter to send / Shift+Enter for a new line',
              bg=PANEL, fg=MUTED, font=('Segoe UI', 9)).pack(side='left', padx=(10, 0))
     self.chat_send_button = ttk.Button(opts, text='Send',
                                        style='Primary.TButton', command=self.send_message)
     self.chat_send_button.pack(side='right')
     ttk.Entry(opts, textvariable=self.vars['max_tokens'], width=7).pack(side='right', padx=(5, 10))
-    tk.Label(opts, text='Max tokens', bg=PANEL, fg=MUTED,
+    ttk.Checkbutton(opts, text='Auto-continue', variable=self.vars['auto_continue'],
+                    command=self.save_settings).pack(side='left', padx=(12, 0))
+    tk.Label(opts, text='Tokens/request', bg=PANEL, fg=MUTED,
              font=('Segoe UI', 9)).pack(side='right')
     self._welcome_chat()
 

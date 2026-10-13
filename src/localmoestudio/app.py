@@ -855,6 +855,8 @@ class LocalMoEStudio(PriorUI):
         self.active_session = self._session_ids[selected[0]]
         record = self.session_store.read(self.active_session)
         self.history = record.get('messages', [])
+        self._can_continue = bool(self.history and self.history[-1].get('role') == 'assistant')
+        self._set_continue_button(self._can_continue)
         self._render_history()
         self.navigate('chat')
 
@@ -878,6 +880,8 @@ class LocalMoEStudio(PriorUI):
             return
         self.active_session = self.session_store.create()
         super().new_chat()
+        self._can_continue = False
+        self._set_continue_button(False)
         self._refresh_sessions()
 
     def drain_events(self):
@@ -892,7 +896,10 @@ class LocalMoEStudio(PriorUI):
         for typ, data in pending:
             if typ == 'chat_done':
                 try:
-                    self.session_store.append_pair(self.active_session, data[0], data[1])
+                    if len(data) > 2 and data[2]:
+                        self.session_store.extend_last_assistant(self.active_session, data[1])
+                    else:
+                        self.session_store.append_pair(self.active_session, data[0], data[1])
                 except Exception as exc:
                     self.status.set('Could not save conversation: ' + str(exc))
         for event in pending:

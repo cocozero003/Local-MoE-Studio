@@ -29,6 +29,17 @@ class SessionStore:
         if record['title']=='New chat': record['title']=user_text.strip()[:70] or 'New chat'
         record['updated']=datetime.now(timezone.utc).isoformat()
         self._write(sid,record)
+    def extend_last_assistant(self, sid, extra_text):
+        """Persist a manual continuation within the existing assistant reply."""
+        from .completion_control import append_answer
+        record = self.read(sid)
+        messages = record.get('messages', [])
+        if not messages or messages[-1].get('role') != 'assistant':
+            raise ValueError('Conversation does not end with an assistant message')
+        messages[-1]['content'] = append_answer(messages[-1]['content'], extra_text)
+        record['updated'] = datetime.now(timezone.utc).isoformat()
+        self._write(sid, record)
+
     def list_all(self):
         items=[]
         for f in self.directory.glob('*.json'):

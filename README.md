@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.8.2 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.8.3 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Visible Stop model controls (v0.7.6)
 
@@ -63,6 +63,23 @@ The Windows desktop Chat page now includes a compact, non-blocking performance p
 - A local **History** dialog listing previous per-model measurements. History is stored at `%LOCALAPPDATA%\LocalMoEStudio\performance_history.jsonl` with no chat prompts or responses.
 
 The dashboard polls physical memory through Windows and NVIDIA VRAM via `nvidia-smi` approximately every 3 seconds, in background threads. CUDA model inference itself must still be tested on NVIDIA hardware. Automated streaming and GUI tests cover the metrics and display.
+
+## Long-answer completion handling (v0.8.3)
+
+Local llama.cpp responses that stop with `finish_reason=length` are now
+reported as truncated, not complete. The **Auto-continue** option in Chat
+(default on) performs at most two additional, bounded requests when needed.
+The **Continue answer** button allows another extension when the output limit
+is reached, or when a server response ends without a finish signal. The
+button is disabled during generation.
+
+Manual continuation extends the last assistant message in the saved session
+without adding a duplicate user question. Stopped, truncated, interrupted
+and unknown-finish responses have distinct status text. To reduce repeated
+extensions, raise **Tokens/request** from 1024 to 2048 if the model and
+context can accommodate it; larger values cost additional generation time
+and context memory. Automatic continuation is deliberately bounded so
+an unexpectedly long response cannot run forever.
 
 ## Rich conversational chat (v0.8.2)
 

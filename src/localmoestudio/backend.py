@@ -14,6 +14,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 from .performance import GenerationMetrics, append_history, tokenize_output_count
+from .completion_control import (CONTINUE_PROMPT, finish_reason, wants_auto_continue,
+                                 continuation_messages, append_answer)
 
 ROOT = Path(__file__).resolve().parent
 USER_DATA = Path(os.getenv('LOCALAPPDATA') or (Path.home() / '.localmoestudio')) / 'LocalMoEStudio'
@@ -25,7 +27,8 @@ DEFAULTS = {
     'moe': 'all', 'moe_layers': '16', 'threads': 'auto', 'flash': True,
     'kv': 'q8_0', 'fit': True, 'fit_margin': '1024',
     'port': '8081', 'temp': '0.7', 'max_tokens': '1024',
-    'system': 'You are a helpful private assistant. Reply in the language of the user.'
+    'system': 'You are a helpful private assistant. Reply in the language of the user.',
+    'auto_continue': True
 }
 
 class Application(tk.Tk):
@@ -38,6 +41,8 @@ class Application(tk.Tk):
         self.events = queue.Queue()
         self.history = []
         self.metrics = None
+        self._finish_info = {}
+        self._can_continue = False
         self.busy = False
         self.ready = False
         self.config_data = self.load_settings()
@@ -283,6 +288,9 @@ class Application(tk.Tk):
         except ValueError:
             messagebox.showerror('Invalid generation settings', 'Temperature 0-2; max tokens 1-32768.'); return
         self.prompt.delete('1.0', 'end')
+        self._finish_info = {}
+        self._can_continue = False
+        self._set_continue_button(False)
         if hasattr(self, '_begin_chat_request_ui'):
             self._begin_chat_request_ui(user_text)
         else:
@@ -296,68 +304,167 @@ class Application(tk.Tk):
                            {'role':'user','content':user_text}]
         threading.Thread(target=self.chat_request, args=(user_text, payload_history, temperature, max_tokens), daemon=True).start()
 
-    def chat_request(self, user_text, messages, temp, max_tokens):
-        content = ''
-        metrics = self.metrics or GenerationMetrics(self.vars['model'].get().strip())
+    def _set_continue_button(self, enabled):
+        button = getattr(self, 'chat_continue_button', None)
+        if button is not None:
+            try:
+                button.configure(state='normal' if enabled else 'disabled')
+            except tk.TclError:
+                pass
+
+    def continue_answer(self):
+        """Append a new generation to the last assistant turn, not a new user bubble."""
+        if self.busy or not self.ready or not self._can_continue:
+            return
+        if not self.history or self.history[-1].get('role') != 'assistant':
+            return
         try:
-            base = {'messages': messages, 'stream': True,
-                    'temperature': temp, 'max_tokens': max_tokens}
-            # Current llama.cpp supports include_usage. Retry without this
-            # optional standard feature on older builds returning HTTP 400.
-            response = None
-            for extra_usage in (True, False):
-                payload = dict(base)
-                if extra_usage:
-                    payload['stream_options'] = {'include_usage': True}
-                req = urllib.request.Request(
-                    self.endpoint('/v1/chat/completions'),
-                    data=json.dumps(payload).encode('utf-8'),
-                    headers={'Content-Type':'application/json'}, method='POST')
-                try:
-                    response = urllib.request.urlopen(req, timeout=3600)
-                    break
-                except urllib.error.HTTPError as exc:
-                    if extra_usage and exc.code == 400:
-                        continue
-                    raise
-            last_update = 0.0
-            with response:
-                for raw in response:
-                    line = raw.decode('utf-8', errors='replace').strip()
-                    if not line.startswith('data: '):
-                        continue
-                    data = line[6:]
-                    if data == '[DONE]':
-                        break
+            temperature = float(self.vars['temp'].get())
+            max_tokens = int(self.vars['max_tokens'].get())
+            if not (0 <= temperature <= 2 and 1 <= max_tokens <= 32768):
+                raise ValueError()
+        except ValueError:
+            messagebox.showerror('Invalid generation settings',
+                                 'Temperature 0-2; max tokens 1-32768.')
+            return
+        self._can_continue = False
+        self._set_continue_button(False)
+        self._finish_info = {}
+        self.busy = True
+        self.status.set('Continuing the unfinished answer...')
+        self.metrics = GenerationMetrics(self.vars['model'].get().strip())
+        self.events.put(('perf_started', self.metrics.snapshot()))
+        dialog = ([{'role': 'system', 'content': self.vars['system'].get()}]
+                  if self.vars['system'].get().strip() else []) + self.history + [
+                      {'role': 'user', 'content': CONTINUE_PROMPT}]
+        threading.Thread(target=self.chat_request,
+                         args=('', dialog, temperature, max_tokens, True),
+                         daemon=True).start()
+
+    def chat_request(self, user_text, messages, temp, max_tokens, continuing=False):
+        """Stream responses, interpreting finish_reason and continuing at most twice.
+
+        Each extra segment is requested only when llama.cpp explicitly reports
+        finish_reason='length'. Stop and offer a manual continuation if the
+        server returns another reason or exhausts the bounded extension budget.
+        """
+        text = ''
+        metrics = self.metrics or GenerationMetrics(self.vars['model'].get().strip())
+        dialog = list(messages)
+        rounds = 0
+        reason = None
+        segment_timings = []
+        segment_usage = []
+        try:
+            while True:
+                base = {'messages': dialog, 'stream': True,
+                        'temperature': temp, 'max_tokens': max_tokens}
+                response = None
+                for with_usage in (True, False):
+                    payload = dict(base)
+                    if with_usage:
+                        payload['stream_options'] = {'include_usage': True}
+                    req = urllib.request.Request(
+                        self.endpoint('/v1/chat/completions'),
+                        data=json.dumps(payload).encode('utf-8'),
+                        headers={'Content-Type':'application/json'}, method='POST')
                     try:
-                        chunk = json.loads(data)
-                        if not isinstance(chunk, dict):
+                        response = urllib.request.urlopen(req, timeout=3600)
+                        break
+                    except urllib.error.HTTPError as exc:
+                        if with_usage and exc.code == 400:
                             continue
-                        part = metrics.ingest(chunk)
-                    except (ValueError, TypeError, IndexError):
-                        continue
-                    if part:
-                        content += part
-                        self.events.put(('token', part))
-                    now = time.perf_counter()
-                    if part and now - last_update >= 0.3:
-                        self.events.put(('perf_progress', metrics.snapshot(now)))
-                        last_update = now
+                        raise
+                reason = None
+                part_text = ''
+                last_update = 0.0
+                # Per-segment backend timings are collected independently so
+                # a later request cannot overwrite an earlier segment's values.
+                metrics.timings = {}
+                metrics.usage = {}
+                with response:
+                    for raw in response:
+                        line = raw.decode('utf-8', errors='replace').strip()
+                        if not line.startswith('data: '):
+                            continue
+                        value = line[6:]
+                        if value == '[DONE]':
+                            break
+                        try:
+                            chunk = json.loads(value)
+                            if not isinstance(chunk, dict):
+                                continue
+                            observed_reason = finish_reason(chunk)
+                            if observed_reason:
+                                reason = observed_reason
+                            part = metrics.ingest(chunk)
+                        except (ValueError, TypeError, IndexError):
+                            continue
+                        if part:
+                            part_text += part
+                            self.events.put(('token', part))
+                        now = time.perf_counter()
+                        if part and now - last_update >= 0.3:
+                            self.events.put(('perf_progress', metrics.snapshot(now)))
+                            last_update = now
+                text = append_answer(text, part_text)
+                segment_timings.append(dict(metrics.timings))
+                segment_usage.append(dict(metrics.usage))
+                if not part_text or not wants_auto_continue(
+                        reason, getattr(getattr(self, 'vars', {}).get('auto_continue'),
+                                'get', lambda: False)(),
+                        rounds):
+                    break
+                rounds += 1
+                self.events.put(('chat_continuing', rounds))
+                dialog = continuation_messages(dialog, part_text)
+
+            # Aggregate reported token totals rather than claiming that the
+            # last segment's tokens/sec represents the whole response.
+            if len(segment_timings) > 1:
+                counts = [float(t['predicted_n']) for t in segment_timings
+                          if isinstance(t.get('predicted_n'), (int, float))]
+                speeds = [float(t['predicted_per_second']) for t in segment_timings
+                          if isinstance(t.get('predicted_per_second'), (int, float))
+                          and t.get('predicted_per_second') > 0]
+                # Never label a last-segment speed as a whole-response speed.
+                metrics.timings.pop('predicted_per_second', None)
+                metrics.timings.pop('predicted_n', None)
+                metrics.usage.pop('completion_tokens', None)
+                if len(counts) == len(segment_timings):
+                    metrics.timings['predicted_n'] = sum(counts)
+                    if len(speeds) == len(counts):
+                        total_time = sum(n / speed for n, speed in zip(counts, speeds))
+                        if total_time > 0:
+                            metrics.timings['predicted_per_second'] = sum(counts) / total_time
+                if not metrics.timings.get('predicted_n') and all(
+                        isinstance(u.get('completion_tokens'), int) for u in segment_usage):
+                    metrics.usage['completion_tokens'] = sum(
+                        u['completion_tokens'] for u in segment_usage)
             completed_at = time.perf_counter()
-            if (content and not metrics.timings.get('predicted_n')
+            if (text and not metrics.timings.get('predicted_n')
                     and not metrics.usage.get('completion_tokens')):
                 try:
-                    count = tokenize_output_count(self.endpoint('/tokenize'), content)
+                    count = tokenize_output_count(self.endpoint('/tokenize'), text)
                     if count is not None:
                         metrics.usage['completion_tokens'] = count
                 except Exception:
-                    # Optional tokenizer endpoint must never break chat.
                     pass
             self.events.put(('perf_done', metrics.finish(now=completed_at)))
-            self.events.put(('chat_done', (user_text, content)))
-        except Exception as ex:
-            self.events.put(('perf_done', metrics.finish(error=str(ex))))
-            self.events.put(('chat_error', str(ex)))
+            self.events.put(('chat_finish_state', {
+                'reason': reason or 'unknown', 'segments': rounds + 1,
+                'continuing': continuing, 'has_text': bool(text)}))
+            self.events.put(('chat_done', (user_text, text, continuing)))
+        except Exception as exc:
+            self.events.put(('perf_done', metrics.finish(error=str(exc))))
+            if text:
+                self.events.put(('chat_finish_state', {
+                    'reason': 'error', 'segments': rounds + 1,
+                    'continuing': continuing, 'has_text': True,
+                    'error': str(exc)}))
+                self.events.put(('chat_done', (user_text, text, continuing)))
+            else:
+                self.events.put(('chat_error', str(exc)))
 
     def drain_events(self):
         try:
@@ -389,21 +496,51 @@ class Application(tk.Tk):
                     callback = getattr(self, '_on_performance_hardware', None)
                     if callback:
                         callback(data)
+                elif typ == 'chat_continuing':
+                    self.status.set('Output limit reached; continuing answer '
+                                    f'(extension {data}/2)...')
+                    if hasattr(self, 'perf_status'):
+                        self.perf_status.set(f'Continuing response {data}/2')
+                elif typ == 'chat_finish_state':
+                    self._finish_info = data
                 elif typ == 'chat_done':
-                    self.history.extend([{'role':'user', 'content':data[0]},
-                                         {'role':'assistant', 'content':data[1]}])
+                    if len(data) > 2 and data[2]:
+                        if self.history and self.history[-1]['role'] == 'assistant':
+                            self.history[-1]['content'] = append_answer(
+                                self.history[-1]['content'], data[1])
+                    else:
+                        self.history.extend([{'role':'user', 'content':data[0]},
+                                             {'role':'assistant', 'content':data[1]}])
                     if hasattr(self, '_finalize_chat_ui'):
                         self._finalize_chat_ui()
                     else:
                         self.append_text(self.transcript, '\n')
                     self.busy = False
-                    self.status.set('Response complete.')
+                    info = self._finish_info
+                    reason = info.get('reason')
+                    incomplete = reason in ('length', 'unknown', 'error')
+                    self._can_continue = bool(incomplete and info.get('has_text'))
+                    self._set_continue_button(self._can_continue)
+                    if reason == 'length':
+                        notice = 'Output limit reached. Select Continue answer for more.'
+                    elif reason == 'error':
+                        notice = ('Generation interrupted: ' + str(info.get('error', ''))
+                                  + '. Continue answer is available.')
+                    elif reason == 'unknown':
+                        notice = 'Response ended without a finish signal. Continue if incomplete.'
+                    else:
+                        notice = 'Response complete.'
+                    self.status.set(notice)
+                    if hasattr(self, 'perf_status'):
+                        self.perf_status.set(notice)
                 elif typ == 'chat_error':
                     if hasattr(self, '_chat_error_ui'):
                         self._chat_error_ui(data)
                     else:
                         self.append_text(self.transcript, '\n[Error: ' + data + ']\n')
                     self.busy = False
+                    self._can_continue = False
+                    self._set_continue_button(False)
                     self.status.set('Request failed; see chat error and logs.')
         except queue.Empty:
             pass
