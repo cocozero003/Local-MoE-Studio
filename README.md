@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.6.0 alpha / developer preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.6.1 alpha / developer preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Features
 
@@ -20,6 +20,14 @@
 ## Screenshots
 
 ![Settings interface](docs/images/settings.png)
+
+## Settings text readability fix (v0.6.1)
+
+Fixes truncated help descriptions and overlapping settings rows on Windows high-DPI displays (including 125%, 150% and 200% scaling). The Settings form now sizes each row to its content instead of constraining the description to the height of the adjacent input. Helper text also uses a larger readable font and additional vertical spacing. No llama.cpp configuration, model files, or chat history are changed.
+
+To update: close the app, download the latest source, extract it into a new folder, and run `START_WINDOWS.bat`. The saved settings and models in your Windows local application-data folder will remain in place.
+
+The layout is covered by a Tk geometry regression test at three display-scaling levels; tests run with a graphical display and skip when CI is headless. Windows hardware validation is still pending.
 
 ## Model discovery update (v0.6.0)
 

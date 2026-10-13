@@ -203,15 +203,23 @@ class LocalMoEStudio(BackendApplication):
         tk.Frame(container,height=1,bg=LINE).pack(fill='x',pady=(0,10))
 
     def _line(self,parent,title,hint):
-        row=tk.Frame(parent,bg=BG)
-        row.pack(fill='x',pady=6)
-        left=tk.Frame(row,bg=BG,width=260)
-        left.pack(side='left',fill='y')
-        left.pack_propagate(False)
-        ttk.Label(left,text=title).pack(anchor='w')
-        tk.Label(left,text=hint,fg=MUTED,bg=BG,font=('Segoe UI',8),wraplength=248,justify='left').pack(anchor='w',pady=(3,0))
-        right=tk.Frame(row,bg=BG)
-        right.pack(side='left',fill='x',expand=True,padx=(15,0))
+        """Size the settings row to fit its title and helper text at high DPI.
+
+        The old left frame disabled geometry propagation while the adjacent
+        input determined the row height, clipping the helper text on Windows.
+        """
+        row = tk.Frame(parent, bg=BG)
+        row.pack(fill='x', pady=(9, 11))
+        row.grid_columnconfigure(0, minsize=260)
+        row.grid_columnconfigure(1, weight=1)
+        left = tk.Frame(row, bg=BG)
+        left.grid(row=0, column=0, sticky='nw')
+        ttk.Label(left, text=title).pack(anchor='w')
+        tk.Label(left, text=hint, fg=MUTED, bg=BG,
+                 font=('Segoe UI', 9), wraplength=250,
+                 justify='left', anchor='w').pack(anchor='w', pady=(4, 0))
+        right = tk.Frame(row, bg=BG)
+        right.grid(row=0, column=1, sticky='ew', padx=(15, 0))
         return right
 
     def _file_setting(self,parent,title,key,callback):
