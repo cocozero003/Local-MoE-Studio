@@ -283,7 +283,10 @@ class Application(tk.Tk):
         except ValueError:
             messagebox.showerror('Invalid generation settings', 'Temperature 0-2; max tokens 1-32768.'); return
         self.prompt.delete('1.0', 'end')
-        self.append_text(self.transcript, '\nYOU\n' + user_text + '\n\nASSISTANT\n')
+        if hasattr(self, '_begin_chat_request_ui'):
+            self._begin_chat_request_ui(user_text)
+        else:
+            self.append_text(self.transcript, '\nYOU\n' + user_text + '\n\nASSISTANT\n')
         self.busy = True
         self.status.set('Generating locally...')
         self.metrics = GenerationMetrics(self.vars['model'].get().strip())
@@ -369,7 +372,10 @@ class Application(tk.Tk):
                     self.ready = False
                     self.status.set(data)
                 elif typ == 'token':
-                    self.append_text(self.transcript, data)
+                    if hasattr(self, '_append_assistant_token'):
+                        self._append_assistant_token(data)
+                    else:
+                        self.append_text(self.transcript, data)
                 elif typ in ('perf_started', 'perf_progress', 'perf_done'):
                     callback = getattr(self, '_on_performance_update', None)
                     if callback:
@@ -386,11 +392,17 @@ class Application(tk.Tk):
                 elif typ == 'chat_done':
                     self.history.extend([{'role':'user', 'content':data[0]},
                                          {'role':'assistant', 'content':data[1]}])
-                    self.append_text(self.transcript, '\n')
+                    if hasattr(self, '_finalize_chat_ui'):
+                        self._finalize_chat_ui()
+                    else:
+                        self.append_text(self.transcript, '\n')
                     self.busy = False
                     self.status.set('Response complete.')
                 elif typ == 'chat_error':
-                    self.append_text(self.transcript, '\n[Error: ' + data + ']\n')
+                    if hasattr(self, '_chat_error_ui'):
+                        self._chat_error_ui(data)
+                    else:
+                        self.append_text(self.transcript, '\n[Error: ' + data + ']\n')
                     self.busy = False
                     self.status.set('Request failed; see chat error and logs.')
         except queue.Empty:

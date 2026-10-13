@@ -178,11 +178,27 @@ class LocalMoEStudio(BackendApplication):
         return attach_text_file(self)
 
     def _welcome_chat(self):
-        self.transcript.configure(state='normal')
-        self.transcript.insert('end', '\nWelcome to Local MoE Studio.\n\n')
-        self.transcript.insert('end', 'Choose a model in Models, then start chatting.\n')
-        self.transcript.insert('end', 'MoE experts can stay in system RAM when GPU memory is limited.\n')
-        self.transcript.configure(state='disabled')
+        self._render_history()
+
+    def _render_history(self):
+        from .chat_renderer import render_history
+        return render_history(self, self.history)
+
+    def _begin_chat_request_ui(self, content):
+        from .chat_renderer import begin_request
+        return begin_request(self, content)
+
+    def _append_assistant_token(self, part):
+        from .chat_renderer import append_token
+        return append_token(self, part)
+
+    def _finalize_chat_ui(self):
+        from .chat_renderer import finish_request
+        return finish_request(self)
+
+    def _chat_error_ui(self, error):
+        from .chat_renderer import show_error
+        return show_error(self, error)
 
     def build_models(self):
         f=self.views['models']
@@ -322,10 +338,8 @@ class LocalMoEStudio(BackendApplication):
     def new_chat(self):
         if self.busy:return
         self.history=[]
-        self.transcript.configure(state='normal')
-        self.transcript.delete('1.0','end')
-        self.transcript.configure(state='disabled')
-        self.status.set('New chat started. Current chat is only in memory.')
+        self._render_history()
+        self.status.set('New chat started.')
 
 if __name__=='__main__':
     LocalMoEStudio().mainloop()

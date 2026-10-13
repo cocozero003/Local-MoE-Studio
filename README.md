@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.8.1 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.8.2 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Visible Stop model controls (v0.7.6)
 
@@ -63,6 +63,19 @@ The Windows desktop Chat page now includes a compact, non-blocking performance p
 - A local **History** dialog listing previous per-model measurements. History is stored at `%LOCALAPPDATA%\LocalMoEStudio\performance_history.jsonl` with no chat prompts or responses.
 
 The dashboard polls physical memory through Windows and NVIDIA VRAM via `nvidia-smi` approximately every 3 seconds, in background threads. CUDA model inference itself must still be tested on NVIDIA hardware. Automated streaming and GUI tests cover the metrics and display.
+
+## Rich conversational chat (v0.8.2)
+
+Chat now presents user prompts in blue right-aligned bubbles and renders the
+assistant's completed answer as readable, left-aligned paragraphs, headings,
+bullets, inline emphasis, code and simple Markdown tables. Live generation
+continues to stream in the transcript; once the response is complete, the
+saved conversation is re-rendered in the richer format.
+
+The same renderer is used for previously saved conversations, avoiding
+inconsistent transcript styles. The view uses standard-library Tkinter,
+does not execute HTML or model-generated code, and preserves the existing
+llama.cpp engine, model downloader, GPU/MoE controls and Team Hub.
 
 ## Sidebar navigation and metrics (v0.8.1)
 

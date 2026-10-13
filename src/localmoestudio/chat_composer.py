@@ -43,8 +43,8 @@ def build_chat(self):
                                   insertbackground=TEXT, font=('Segoe UI', 11),
                                   padx=22, pady=18, spacing1=4, spacing2=2, spacing3=12)
     self.transcript.grid(row=0, column=0, sticky='nsew')
-    self.transcript.tag_configure('heading', font=('Segoe UI', 10, 'bold'),
-                                  foreground='#525252', spacing1=12)
+    from .chat_renderer import configure
+    configure(self)
 
     # Grid reserves the bottom row for the message composer.
     compose_shell = tk.Frame(frame, bg=PANEL, highlightbackground=LINE,

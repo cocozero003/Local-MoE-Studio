@@ -855,12 +855,7 @@ class LocalMoEStudio(PriorUI):
         self.active_session = self._session_ids[selected[0]]
         record = self.session_store.read(self.active_session)
         self.history = record.get('messages', [])
-        self.transcript.configure(state='normal')
-        self.transcript.delete('1.0', 'end')
-        for msg in self.history:
-            title = 'YOU' if msg.get('role') == 'user' else 'ASSISTANT'
-            self.transcript.insert('end', '\n'+title+'\n'+str(msg.get('content',''))+'\n')
-        self.transcript.configure(state='disabled')
+        self._render_history()
         self.navigate('chat')
 
     def _delete_session(self):
