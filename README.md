@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.8.3 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.8.4 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Visible Stop model controls (v0.7.6)
 
@@ -63,6 +63,30 @@ The Windows desktop Chat page now includes a compact, non-blocking performance p
 - A local **History** dialog listing previous per-model measurements. History is stored at `%LOCALAPPDATA%\LocalMoEStudio\performance_history.jsonl` with no chat prompts or responses.
 
 The dashboard polls physical memory through Windows and NVIDIA VRAM via `nvidia-smi` approximately every 3 seconds, in background threads. CUDA model inference itself must still be tested on NVIDIA hardware. Automated streaming and GUI tests cover the metrics and display.
+
+## Recall questions from saved desktop chats (v0.8.4)
+
+Previous Local MoE Studio conversations are saved as separate sessions. A new
+conversation normally sends only its own turns to llama.cpp, so a model cannot
+know what you asked previously without explicit archive retrieval.
+
+- **Chat > Past questions** lists recent questions directly from local desktop
+  session files, without requiring the model to be running.
+- The Chat header has a **Search saved chats when asked** checkbox, enabled
+  by default for this Windows user and able to be disabled at any time.
+- Questions such as "from the chat history, list what I ask" get a factual,
+  bounded list of stored user questions instead of an invented AI answer.
+- Other explicit references to earlier conversations retrieve a small number
+  of relevant user/assistant snippets. These are sent only to the local
+  llama.cpp server, with incomplete provenance clearly labeled. Ordinary
+  prompts do not automatically search unrelated past chats.
+- Each excerpt is truncated to fit a modest context budget. Recall is lexical,
+  not semantic RAG, and is **not exhaustive**. This feature cannot access
+  ChatGPT, deleted chats, other Windows accounts, or separate Team Hub users.
+
+Only the local desktop user's saved session JSON files are searched. The feature
+is on-device and does not call online providers. Existing sessions are not
+migrated or modified except when you save a new conversation.
 
 ## Long-answer completion handling (v0.8.3)
 

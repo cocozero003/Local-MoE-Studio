@@ -19,6 +19,8 @@ from .model_hub import (
 from .engine_installer import install_engine
 from .backend import USER_DATA
 from .sessions import SessionStore
+from .chat_memory import (is_question_list_query, is_history_query,
+                          format_question_list, recall_context)
 from .local_library import list_installed_models
 from .profiles import PROFILES, apply_profile, infer_profile, recommendation
 
@@ -874,6 +876,60 @@ class LocalMoEStudio(PriorUI):
             self.active_session = self.session_store.create()
             super().new_chat()
         self._refresh_sessions()
+
+    def _saved_history_context(self, text):
+        """Only read desktop archives for explicit history questions."""
+        if not self.vars['use_saved_chats'].get() or not is_history_query(text):
+            return ''
+        return recall_context(self.session_store, text,
+                              exclude_session=self.active_session,
+                              max_chars=2600, max_results=6)
+
+    def _answer_local_history_request(self, text):
+        """Answer question inventories from real saved records, not model guesses."""
+        if not is_question_list_query(text):
+            return False
+        if not self.vars['use_saved_chats'].get():
+            answer = ('Saved-chat search is disabled. Turn on '
+                      '"Search saved chats when asked" above the conversation.')
+            count = 0
+        else:
+            try:
+                answer, count = format_question_list(self.session_store, limit=40)
+            except (OSError, ValueError) as exc:
+                answer, count = ('Cannot read saved desktop chats: ' + str(exc), 0)
+        self.prompt.delete('1.0', 'end')
+        self._can_continue = False
+        self._set_continue_button(False)
+        self._begin_chat_request_ui(text)
+        self.history.extend([{'role': 'user', 'content': text},
+                             {'role': 'assistant', 'content': answer}])
+        try:
+            self.session_store.append_pair(self.active_session, text, answer)
+        except (OSError, ValueError) as exc:
+            self.status.set('Archive answer shown but saving failed: ' + str(exc))
+        self._finalize_chat_ui()
+        self._refresh_sessions()
+        if hasattr(self, 'perf_status'):
+            self.perf_status.set('Local saved chats (no model call)')
+        self.status.set(f'Local saved-chat lookup: {count} prior user messages found.')
+        return True
+
+    def show_past_questions(self):
+        """Open a scrollable inventory without launching the inference engine."""
+        from tkinter.scrolledtext import ScrolledText
+        try:
+            text, _ = format_question_list(self.session_store, limit=500)
+        except (OSError, ValueError) as exc:
+            text = 'Could not load saved chats: ' + str(exc)
+        popup = tk.Toplevel(self)
+        popup.title('Past questions - Local MoE Studio desktop')
+        popup.geometry('820x610')
+        body = ScrolledText(popup, wrap='word', font=('Segoe UI', 10),
+                            padx=15, pady=15)
+        body.pack(fill='both', expand=True)
+        body.insert('1.0', text)
+        body.configure(state='disabled')
 
     def new_chat(self):
         if self.busy:

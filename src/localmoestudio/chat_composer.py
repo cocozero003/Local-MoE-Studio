@@ -33,6 +33,9 @@ def build_chat(self):
     self.model_name = tk.Label(model_bar, text='No model selected', bg=BG,
                                fg=TEXT, font=('Segoe UI', 10, 'bold'))
     self.model_name.pack(side='left', padx=9)
+    ttk.Checkbutton(model_bar, text='Search saved chats when asked',
+                    variable=self.vars['use_saved_chats'],
+                    command=self.save_settings).pack(side='right', padx=(10, 0))
 
     center = tk.Frame(frame, bg=BG)
     center.grid(row=2, column=0, sticky='nsew', padx=72, pady=(14, 12))

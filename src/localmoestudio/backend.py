@@ -28,7 +28,7 @@ DEFAULTS = {
     'kv': 'q8_0', 'fit': True, 'fit_margin': '1024',
     'port': '8081', 'temp': '0.7', 'max_tokens': '1024',
     'system': 'You are a helpful private assistant. Reply in the language of the user.',
-    'auto_continue': True
+    'auto_continue': True, 'use_saved_chats': True
 }
 
 class Application(tk.Tk):
@@ -275,11 +275,16 @@ class Application(tk.Tk):
     def send_message(self):
         if self.busy:
             return
-        if not self.ready:
-            messagebox.showwarning('Server not ready', 'Start the server and wait for a ready status.'); return
         user_text = self.prompt.get('1.0', 'end').strip()
         if not user_text:
             return
+        # A request to list saved questions is answered exactly from local
+        # records, even when no inference model is loaded.
+        if hasattr(self, '_answer_local_history_request'):
+            if self._answer_local_history_request(user_text):
+                return
+        if not self.ready:
+            messagebox.showwarning('Server not ready', 'Start the server and wait for a ready status.'); return
         try:
             temperature = float(self.vars['temp'].get())
             max_tokens = int(self.vars['max_tokens'].get())
@@ -302,6 +307,13 @@ class Application(tk.Tk):
         payload_history = ([{'role':'system','content':self.vars['system'].get()}]
                            if self.vars['system'].get().strip() else []) + self.history + [
                            {'role':'user','content':user_text}]
+        if hasattr(self, '_saved_history_context'):
+            try:
+                archive_context = self._saved_history_context(user_text)
+            except (OSError, ValueError):
+                archive_context = ''
+            if archive_context:
+                payload_history.insert(0, {'role':'system','content':archive_context})
         threading.Thread(target=self.chat_request, args=(user_text, payload_history, temperature, max_tokens), daemon=True).start()
 
     def _set_continue_button(self, enabled):

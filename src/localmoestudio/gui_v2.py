@@ -83,6 +83,12 @@ class LocalMoEStudio(BackendApplication):
                     activebackground='#ECEEF2', padx=31, pady=5,
                     command=self._new_chat_from_sidebar)
                 self.sidebar_new_chat.pack(fill='x', padx=11, pady=(0, 3))
+                self.sidebar_past_questions = tk.Button(
+                    self.sidebar, text='Past questions', relief='flat', bd=0,
+                    anchor='w', font=('Segoe UI', 9), fg=MUTED, bg=SIDE,
+                    activebackground='#ECEEF2', padx=31, pady=5,
+                    command=self.show_past_questions)
+                self.sidebar_past_questions.pack(fill='x', padx=11, pady=(0, 3))
             elif key == 'models':
                 self.sidebar_model_choice = tk.StringVar(value='Select a model')
                 self.sidebar_model_paths = {}
