@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.7.0 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.7.1 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Features
 
@@ -16,6 +16,10 @@
 - Local streaming chat and saved conversations.
 - NVIDIA memory/status information and server log window.
 - Python standard-library runtime for source use; **no Docker**.
+
+## CI portability fix (v0.7.1)
+
+Fixes SQLite connection cleanup on Windows (open file handles prevented temporary database cleanup) and makes high-DPI Tk layout assertions portable to headless Windows test runners. These are reliability fixes; Team Hub remains an alpha pilot.
 
 ## Team Hub (new in v0.7.0)
 

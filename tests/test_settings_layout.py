@@ -31,7 +31,9 @@ class SettingsLayoutTests(unittest.TestCase):
                     title, hint = left.winfo_children()
                     self.assertGreaterEqual(left.winfo_height(), title.winfo_height() + hint.winfo_height())
                     self.assertGreaterEqual(hint.winfo_height(), hint.winfo_reqheight())
-                    self.assertGreaterEqual(row.winfo_height(), left.winfo_height())
+                    # Some headless Windows runners defer pixel layout until after mapping.
+                    # The requested row height must still accommodate its child labels.
+                    self.assertGreaterEqual(row.winfo_reqheight(), left.winfo_reqheight())
                 finally:
                     root.destroy()
 

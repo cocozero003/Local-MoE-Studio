@@ -5,6 +5,7 @@ Only local SQLite storage; account/session/API secrets are hashed at rest.
 from __future__ import annotations
 
 import hashlib
+from contextlib import contextmanager
 import hmac
 import re
 import secrets
@@ -30,12 +31,22 @@ class TeamDB:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._init()
 
+    @contextmanager
     def _connect(self):
+        # sqlite3's own context manager commits but does not close the file.
+        # Explicit close is needed for Windows cleanup and safe database management.
         db = sqlite3.connect(str(self.path), timeout=15)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA foreign_keys = ON")
-        db.execute("PRAGMA busy_timeout = 15000")
-        return db
+        try:
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA foreign_keys = ON")
+            db.execute("PRAGMA busy_timeout = 15000")
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
     def _init(self):
         with self._connect() as db:
