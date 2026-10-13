@@ -83,39 +83,20 @@ class LocalMoEStudio(BackendApplication):
                         font=('Segoe UI', 11, 'bold' if k==tab else 'normal'))
 
     def build_chat(self):
-        frame = self.views['chat']
-        bar = tk.Frame(frame, bg=BG)
-        bar.pack(fill='x', padx=36, pady=(23,12))
-        tk.Label(bar, text='Chat', bg=BG, fg=TEXT, font=('Segoe UI', 18, 'bold')).pack(side='left')
-        ttk.Button(bar, text='New chat', command=self.new_chat).pack(side='right')
-        model_bar = tk.Frame(frame, bg=BG)
-        model_bar.pack(fill='x', padx=36)
-        tk.Label(model_bar, text='Current model:', bg=BG, fg=MUTED, font=('Segoe UI', 9)).pack(side='left')
-        self.model_name = tk.Label(model_bar, text='No model selected', bg=BG, fg=TEXT, font=('Segoe UI', 10, 'bold'))
-        self.model_name.pack(side='left', padx=9)
-        ttk.Button(model_bar, text='Model settings', command=lambda:self.navigate('settings')).pack(side='right')
-        center = tk.Frame(frame, bg=BG)
-        center.pack(fill='both', expand=True, padx=65, pady=(15,10))
-        self.transcript = ScrolledText(center, wrap='word', state='disabled', relief='flat', bd=0,
-                                      bg=BG, fg=TEXT, insertbackground=TEXT,
-                                      font=('Segoe UI', 11), padx=20, pady=13, spacing3=9)
-        self.transcript.pack(fill='both', expand=True)
-        self.transcript.tag_configure('heading', font=('Segoe UI', 10, 'bold'), foreground='#525252', spacing1=12)
-        compose_shell = tk.Frame(frame, bg=PANEL, highlightbackground=LINE, highlightthickness=1)
-        compose_shell.pack(fill='x', padx=83, pady=(0,28))
-        self.prompt = tk.Text(compose_shell, height=3, wrap='word', bg=PANEL, fg=TEXT, relief='flat', bd=0,
-                              font=('Segoe UI', 11), padx=14, pady=12, insertbackground=TEXT)
-        self.prompt.pack(side='top', fill='x')
-        self.prompt.bind('<Control-Return>', lambda e: (self.send_message(), 'break'))
-        opts = tk.Frame(compose_shell, bg=PANEL)
-        opts.pack(fill='x', padx=12, pady=(0,9))
-        tk.Label(opts, text='Ctrl+Enter to send', bg=PANEL, fg=MUTED, font=('Segoe UI', 9)).pack(side='left')
-        ttk.Button(opts, text='Send', style='Primary.TButton', command=self.send_message).pack(side='right')
-        tk.Label(opts, text='Max tokens', bg=PANEL, fg=MUTED, font=('Segoe UI', 9)).pack(side='left', padx=(24,5))
-        ttk.Entry(opts, textvariable=self.vars['max_tokens'], width=7).pack(side='left')
-        tk.Label(opts, text='Temp', bg=PANEL, fg=MUTED, font=('Segoe UI', 9)).pack(side='left', padx=(16,5))
-        ttk.Entry(opts, textvariable=self.vars['temp'], width=6).pack(side='left')
-        self._welcome_chat()
+        from .chat_composer import build_chat
+        build_chat(self)
+
+    def _composer_enter(self, event):
+        from .chat_composer import composer_enter
+        return composer_enter(self, event)
+
+    def _composer_ctrl_enter(self, event):
+        from .chat_composer import composer_ctrl_enter
+        return composer_ctrl_enter(self, event)
+
+    def attach_text_file(self):
+        from .chat_composer import attach_text_file
+        return attach_text_file(self)
 
     def _welcome_chat(self):
         self.transcript.configure(state='normal')
