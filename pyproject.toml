@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-moe-studio"
-version = "0.7.2"
+version = "0.7.3"
 description = "A beginner-friendly local llama.cpp GUI with MoE CPU offloading"
 readme = "README.md"
 requires-python = ">=3.10"

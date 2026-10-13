@@ -2,7 +2,18 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.7.2 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.7.3 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+
+## Installed GGUF library (v0.7.3)
+
+The previous **Open models folder** action opened Explorer only. It could not select or load
+a GGUF file into the app. The Models page now lists downloaded GGUFs (including nested folders)
+under **Installed models**. Use **Use selected** or **Use and start**; choose an external
+GGUF with **Choose a GGUF file...**. **Manage files in Explorer** now clearly means file
+management only. The list refreshes automatically after a model download or on demand.
+Incomplete GGUF shards are marked and prevented from being selected.
+
+No local model files, downloaded engines, or conversations are deleted or moved.
 
 ## Desktop chat composer fix (v0.7.2)
 

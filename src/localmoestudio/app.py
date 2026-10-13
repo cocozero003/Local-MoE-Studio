@@ -19,6 +19,7 @@ from .model_hub import (
 from .engine_installer import install_engine
 from .backend import USER_DATA
 from .sessions import SessionStore
+from .local_library import list_installed_models
 from .profiles import PROFILES, apply_profile, infer_profile, recommendation
 
 BG = '#FFFFFF'
@@ -50,6 +51,7 @@ class LocalMoEStudio(PriorUI):
         self.active_session = self.session_store.create()
         self._refresh_sessions()
         self.after(300, self._check_engine_installed)
+        self.after(350, self.refresh_installed_models)
         self.after(140, self._drain_hub_events)
         if self.vars['auto_refresh_catalog'].get():
             self.after(700, self.refresh_catalog)  # Metadata only; never model weights.
@@ -155,10 +157,46 @@ class LocalMoEStudio(PriorUI):
         self.engine_bar.pack(fill='x')
         tk.Label(engine, text='CUDA 12 is recommended for most NVIDIA Windows PCs. Downloads official GitHub release binaries and matching CUDA DLLs.',
                  bg=PANEL, fg=MUTED, anchor='w', wraplength=800, justify='left').pack(fill='x',pady=(6,0))
+        # Use downloaded GGUFs without opening or double-clicking files in Explorer.
+        tk.Label(shell, text='2. Installed models', bg=BG, fg=TEXT,
+                 font=('Segoe UI', 11, 'bold')).pack(anchor='w', pady=(3, 5))
+        tk.Label(shell, text='Choose a downloaded GGUF here. Explorer only manages files; it does not load models.',
+                 bg=BG, fg=MUTED, font=('Segoe UI', 9)).pack(anchor='w', pady=(0, 6))
+        managed_frame = tk.Frame(shell, bg=BG)
+        managed_frame.pack(fill='x', pady=(0, 6))
+        self.installed_tree = ttk.Treeview(managed_frame, columns=('size', 'location'),
+                                          show='tree headings', height=4, selectmode='browse')
+        self.installed_tree.heading('#0', text='Downloaded GGUF model')
+        self.installed_tree.heading('size', text='Size')
+        self.installed_tree.heading('location', text='Folder')
+        self.installed_tree.column('#0', width=415, stretch=True)
+        self.installed_tree.column('size', width=90, stretch=False, anchor='e')
+        self.installed_tree.column('location', width=225, stretch=True)
+        self.installed_tree.pack(side='left', fill='x', expand=True)
+        managed_scroll = ttk.Scrollbar(managed_frame, orient='vertical', command=self.installed_tree.yview)
+        self.installed_tree.configure(yscrollcommand=managed_scroll.set)
+        managed_scroll.pack(side='right', fill='y')
+        self.installed_tree.bind('<Double-1>', lambda event: self.use_installed_model())
+        self.installed_paths = {}
+        installed_buttons = tk.Frame(shell, bg=BG)
+        installed_buttons.pack(fill='x', pady=(0, 6))
+        ttk.Button(installed_buttons, text='Use selected', style='Primary.TButton',
+                   command=self.use_installed_model).pack(side='left')
+        ttk.Button(installed_buttons, text='Use and start',
+                   command=lambda: self.use_installed_model(start=True)).pack(side='left', padx=6)
+        ttk.Button(installed_buttons, text='Choose a GGUF file...',
+                   command=self.choose_local_gguf).pack(side='left', padx=6)
+        ttk.Button(installed_buttons, text='Refresh installed',
+                   command=self.refresh_installed_models).pack(side='left', padx=6)
+        ttk.Button(installed_buttons, text='Manage files in Explorer',
+                   command=self.open_model_folder).pack(side='right')
+        self.installed_status = tk.StringVar(value='Looking for existing models...')
+        tk.Label(shell, textvariable=self.installed_status, bg=BG, fg=MUTED,
+                 anchor='w', justify='left').pack(fill='x', pady=(0, 11))
         ttk.Checkbutton(shell,text='Refresh model listings on startup (metadata only)',
                         variable=self.vars['auto_refresh_catalog'],
                         command=self.save_settings).pack(anchor='w',pady=(0,10))
-        tk.Label(shell, text='2. Discover GGUF models', bg=BG, fg=TEXT,
+        tk.Label(shell, text='3. Discover GGUF models', bg=BG, fg=TEXT,
                  font=('Segoe UI', 11, 'bold')).pack(anchor='w', pady=(0,8))
         filters=tk.Frame(shell,bg=BG)
         filters.pack(fill='x',pady=(1,6))
@@ -211,7 +249,7 @@ class LocalMoEStudio(PriorUI):
         tk.Label(shell,text='Select a repository above, then click Find GGUF files to choose its quantization.',
                  bg=BG,fg=MUTED,anchor='w').pack(fill='x',pady=(1,8))
         self._render_catalog()
-        tk.Label(shell, text='3. Choose GGUF quantization',bg=BG,fg=TEXT,
+        tk.Label(shell, text='4. Choose GGUF quantization',bg=BG,fg=TEXT,
                  font=('Segoe UI',11,'bold')).pack(anchor='w',pady=(7,8))
 
 
@@ -257,7 +295,6 @@ class LocalMoEStudio(PriorUI):
                                        style='Primary.TButton', command=self.start_download)
         self.download_btn.pack(side='left')
         ttk.Button(download_row, text='Cancel', command=self.cancel_current_download).pack(side='left', padx=8)
-        ttk.Button(download_row, text='Open models folder', command=self.open_model_folder).pack(side='right')
         self.download_bar = ttk.Progressbar(shell, mode='determinate', maximum=100)
         self.download_bar.pack(fill='x')
         self.download_text = tk.StringVar(value='Choose a model and click Find GGUF files.')
@@ -420,6 +457,80 @@ class LocalMoEStudio(PriorUI):
     def get_model_dir(self):
         return USER_DATA / 'models'
 
+    def refresh_installed_models(self):
+        """Refresh the in-app installed GGUF list; never modify model files."""
+        if not hasattr(self, 'installed_tree'):
+            return
+        previous = self.vars['model'].get().strip()
+        try:
+            models = list_installed_models(self.get_model_dir(), previous)
+        except OSError as exc:
+            self.installed_status.set('Could not scan installed models: ' + str(exc))
+            return
+        self.installed_tree.delete(*self.installed_tree.get_children())
+        self.installed_paths = {}
+        selected_id = None
+        for idx, model in enumerate(models):
+            key = str(idx)
+            self.installed_paths[key] = model
+            status = '' if model['complete'] else ' [incomplete shards]'
+            self.installed_tree.insert('', 'end', iid=key,
+                                       text=model['name'] + status,
+                                       values=(human_size(model['size']),
+                                               Path(model['location']).name))
+            if Path(model['path']) == Path(previous):
+                selected_id = key
+        if selected_id is not None:
+            self.installed_tree.selection_set(selected_id)
+            self.installed_tree.see(selected_id)
+        self.installed_status.set(
+            f'{len(models)} installed GGUF model(s). Select one and click Use and start.'
+            if models else 'No GGUF models found. Download a model below or choose a GGUF file.')
+
+    def choose_local_gguf(self):
+        """Select a local GGUF directly, without a Windows file association."""
+        chosen = filedialog.askopenfilename(
+            title='Choose a downloaded GGUF model',
+            initialdir=str(self.get_model_dir()),
+            filetypes=[('GGUF model', '*.gguf'), ('All files', '*.*')])
+        if chosen:
+            self._select_model_path(chosen)
+            self.refresh_installed_models()
+
+    def browse_model(self):
+        self.choose_local_gguf()
+
+    def _select_model_path(self, path):
+        path = Path(path)
+        if not path.is_file() or path.suffix.lower() != '.gguf':
+            messagebox.showerror('Invalid GGUF', 'Select an existing .gguf model file.')
+            return False
+        if self.process and self.process.poll() is None:
+            if self.vars['model'].get().strip() != str(path):
+                messagebox.showwarning('Model running',
+                                       'Stop the current model before switching to another GGUF.')
+                return False
+        self.vars['model'].set(str(path))
+        self.model_name.configure(text=path.name)
+        self.save_settings()
+        self.installed_status.set('Selected model: ' + path.name + '. Click Start model or Use and start.')
+        return True
+
+    def use_installed_model(self, start=False):
+        selected = self.installed_tree.selection()
+        if not selected:
+            messagebox.showinfo('Select a GGUF', 'Choose a model from Installed models, or use Choose a GGUF file.')
+            return
+        model = self.installed_paths.get(selected[0])
+        if not model:
+            return
+        if not model['complete']:
+            messagebox.showerror('Incomplete model',
+                'This model has missing GGUF shards. Download all parts into the same folder before loading.')
+            return
+        if self._select_model_path(model['path']) and start:
+            self._start_from_hub()
+
     def open_model_folder(self):
         folder = self.get_model_dir()
         folder.mkdir(exist_ok=True)
@@ -465,14 +576,19 @@ class LocalMoEStudio(PriorUI):
 
     def _start_from_hub(self):
         if not Path(self.vars['server'].get().strip()).is_file():
-            self.navigate('settings')
-            messagebox.showinfo('Install engine', 'Use Install / Update llama.cpp at the top of the Models page first.')
+            self.navigate('models')
+            messagebox.showinfo('Install engine', 'Install llama.cpp using the Models page first.')
             return
-        if not self.vars['model'].get().strip():
-            messagebox.showinfo('Choose GGUF','Download or browse to a local GGUF model first.')
+        model_path = Path(self.vars['model'].get().strip())
+        if not model_path.is_file() or model_path.suffix.lower() != '.gguf':
+            messagebox.showinfo('Choose GGUF', 'Select an installed GGUF model or choose an existing GGUF file.')
+            return
+        if self.process and self.process.poll() is None:
+            self.navigate('chat')
             return
         self.start_server()
-        self.navigate('chat')
+        if self.process is not None and self.process.poll() is None:
+            self.navigate('chat')
 
     def _schedule_hardware(self):
         def work():
@@ -574,6 +690,7 @@ class LocalMoEStudio(PriorUI):
                         self.save_settings()
                         self.download_bar['value'] = 100
                         self.download_text.set('Ready: '+Path(data).name)
+                        self.refresh_installed_models()
                         messagebox.showinfo('Download complete','GGUF saved and selected. Open Settings to configure MoE offloading, then click Start model.')
                     else:
                         self.download_text.set('Download paused. Select the same model again to resume.')
