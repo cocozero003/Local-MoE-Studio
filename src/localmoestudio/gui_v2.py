@@ -133,6 +133,13 @@ class LocalMoEStudio(BackendApplication):
             b.configure(bg='#ECEEF2' if k==tab else SIDE,
                         font=('Segoe UI', 11, 'bold' if k==tab else 'normal'))
 
+    def show_past_questions(self):
+        """Standalone GUI fallback; the full application overrides this."""
+        messagebox.showinfo(
+            'Past questions',
+            'Saved-chat browsing is available in the full Local MoE Studio app.'
+        )
+
     def _new_chat_from_sidebar(self):
         self.new_chat()
         self.navigate('chat')
