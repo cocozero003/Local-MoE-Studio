@@ -40,9 +40,31 @@ class LocalMoEStudio(BackendApplication):
 
         self.shell = tk.Frame(self, bg=BG)
         self.shell.pack(fill='both', expand=True)
-        self.sidebar = tk.Frame(self.shell, bg=SIDE, width=220, highlightbackground=LINE, highlightthickness=1)
-        self.sidebar.pack(side='left', fill='y')
-        self.sidebar.pack_propagate(False)
+        self.sidebar_shell = tk.Frame(self.shell, bg=SIDE, width=220,
+                                      highlightbackground=LINE, highlightthickness=1)
+        self.sidebar_shell.pack(side='left', fill='y')
+        self.sidebar_shell.pack_propagate(False)
+        # Navigation can scroll; live metrics remain pinned below it.
+        self.sidebar_scroll_area = tk.Frame(self.sidebar_shell, bg=SIDE)
+        self.sidebar_scroll_area.pack(side='top', fill='both', expand=True)
+        self.sidebar_canvas = tk.Canvas(self.sidebar_scroll_area, bg=SIDE,
+                                        highlightthickness=0, bd=0)
+        sidebar_scroll = ttk.Scrollbar(self.sidebar_scroll_area, orient='vertical',
+                                       command=self.sidebar_canvas.yview)
+        sidebar_scroll.pack(side='right', fill='y')
+        self.sidebar_canvas.pack(side='left', fill='both', expand=True)
+        self.sidebar_canvas.configure(yscrollcommand=sidebar_scroll.set)
+        self.sidebar = tk.Frame(self.sidebar_canvas, bg=SIDE)
+        sidebar_window = self.sidebar_canvas.create_window((0, 0), window=self.sidebar,
+                                                            anchor='nw')
+        self.sidebar.bind('<Configure>', lambda e: self.sidebar_canvas.configure(
+            scrollregion=self.sidebar_canvas.bbox('all')))
+        self.sidebar_canvas.bind('<Configure>', lambda e: self.sidebar_canvas.itemconfigure(
+            sidebar_window, width=e.width))
+        self.sidebar_scroll_area.bind('<Enter>', lambda e: self.sidebar_canvas.bind_all(
+            '<MouseWheel>', lambda w: self.sidebar_canvas.yview_scroll(-int(w.delta / 120), 'units')))
+        self.sidebar_scroll_area.bind('<Leave>',
+                                      lambda e: self.sidebar_canvas.unbind_all('<MouseWheel>'))
         brand = tk.Frame(self.sidebar, bg=SIDE)
         brand.pack(fill='x', pady=(21,22), padx=17)
         tk.Label(brand, text='Local MoE Studio', font=('Segoe UI', 13, 'bold'), fg=TEXT, bg=SIDE).pack(anchor='w')
@@ -54,11 +76,34 @@ class LocalMoEStudio(BackendApplication):
                           padx=17, pady=11, cursor='hand2', command=lambda name=key: self.navigate(name))
             b.pack(fill='x', padx=11, pady=2)
             self.nav_buttons[key] = b
-        ttk.Separator(self.sidebar).pack(fill='x', padx=16, pady=(27,15))
+            if key == 'chat':
+                self.sidebar_new_chat = tk.Button(
+                    self.sidebar, text='New chat', relief='flat', bd=0,
+                    anchor='w', font=('Segoe UI', 9), fg=MUTED, bg=SIDE,
+                    activebackground='#ECEEF2', padx=31, pady=5,
+                    command=self._new_chat_from_sidebar)
+                self.sidebar_new_chat.pack(fill='x', padx=11, pady=(0, 3))
+            elif key == 'models':
+                self.sidebar_model_choice = tk.StringVar(value='Select a model')
+                self.sidebar_model_paths = {}
+                self.sidebar_model_combo = ttk.Combobox(
+                    self.sidebar, textvariable=self.sidebar_model_choice,
+                    state='readonly', width=22, values=[])
+                self.sidebar_model_combo.pack(fill='x', padx=(26, 14), pady=(1, 3))
+                self.sidebar_model_combo.bind('<<ComboboxSelected>>', self._sidebar_choose_model)
+                self.sidebar_open_models = tk.Button(
+                    self.sidebar, text='Browse model library', relief='flat', bd=0,
+                    anchor='w', font=('Segoe UI', 9), fg=MUTED, bg=SIDE,
+                    activebackground='#ECEEF2', padx=31, pady=5,
+                    command=lambda: self.navigate('models'))
+                self.sidebar_open_models.pack(fill='x', padx=11, pady=(0, 3))
+        ttk.Separator(self.sidebar).pack(fill='x', padx=16, pady=(18,10))
         tk.Label(self.sidebar, text='LOCAL STATUS', font=('Segoe UI', 9, 'bold'), fg=MUTED, bg=SIDE).pack(anchor='w', padx=20)
         self.state_label = tk.Label(self.sidebar, text='Not running', font=('Segoe UI', 10), fg='#B45309', bg=SIDE)
         self.state_label.pack(anchor='w', padx=20, pady=(7,5))
-        tk.Label(self.sidebar, text='Local-only  •  No Docker', font=('Segoe UI', 9), fg=MUTED, bg=SIDE).pack(side='bottom', anchor='w', padx=20, pady=22)
+        tk.Label(self.sidebar_shell, text='Local-only  •  No Docker', font=('Segoe UI', 9), fg=MUTED, bg=SIDE).pack(side='bottom', anchor='w', padx=20, pady=12)
+        from .performance_ui import build_sidebar
+        build_sidebar(self, self.sidebar_shell)
 
         self.area = tk.Frame(self.shell, bg=BG)
         self.area.pack(side='left', fill='both', expand=True)
@@ -81,6 +126,32 @@ class LocalMoEStudio(BackendApplication):
         for k,b in self.nav_buttons.items():
             b.configure(bg='#ECEEF2' if k==tab else SIDE,
                         font=('Segoe UI', 11, 'bold' if k==tab else 'normal'))
+
+    def _new_chat_from_sidebar(self):
+        self.new_chat()
+        self.navigate('chat')
+
+    def _sidebar_choose_model(self, event=None):
+        """Select a downloaded GGUF; never automatically interrupt inference."""
+        path = self.sidebar_model_paths.get(self.sidebar_model_choice.get())
+        if not path:
+            return
+        if hasattr(self, '_select_model_path'):
+            if not self._select_model_path(path):
+                self._sync_sidebar_model_selection()
+            return
+        self.vars['model'].set(path)
+        self.model_name.configure(text=Path(path).name)
+        self._sync_sidebar_model_selection()
+
+    def _sync_sidebar_model_selection(self):
+        selected = self.vars['model'].get().strip()
+        for title, path in self.sidebar_model_paths.items():
+            if path == selected:
+                if self.sidebar_model_choice.get() != title:
+                    self.sidebar_model_choice.set(title)
+                return
+        self.sidebar_model_choice.set('Select a model')
 
     def build_chat(self):
         from .chat_composer import build_chat
@@ -244,6 +315,7 @@ class LocalMoEStudio(BackendApplication):
                                        fg='#16803D' if self.ready else '#B45309')
             p=self.vars['model'].get().strip()
             self.model_name.configure(text=Path(p).name if p else 'No model selected')
+            self._sync_sidebar_model_selection()
         except tk.TclError: return
         self.after(1200,self._refresh_status)
 

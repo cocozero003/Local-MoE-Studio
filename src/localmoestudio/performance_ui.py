@@ -1,41 +1,62 @@
-"""Compact live performance dashboard for the Windows desktop chat."""
+"""Compact, pinned sidebar performance metrics for the local llama.cpp model."""
 import tkinter as tk
 from tkinter import ttk
 from .backend import USER_DATA
 from .performance import read_history
 
-BG = '#F4F5F7'
+BG = '#F7F7F8'
 MUTED = '#6B7280'
 TEXT = '#111827'
 
 
-def build_strip(app, parent, row=3):
-    host = tk.Frame(parent, bg=BG, highlightbackground='#E5E7EB', highlightthickness=1)
-    host.grid(row=row, column=0, sticky='ew', padx=64, pady=(0, 10))
+def build_sidebar(app, sidebar):
+    """Keep generation timings above dedicated GPU and system RAM usage."""
+    host = tk.Frame(sidebar, bg=BG)
+    host.pack(side='bottom', fill='x', padx=12, pady=(4, 10))
     app.perf_panel = host
-    upper = tk.Frame(host, bg=BG)
-    upper.pack(fill='x', padx=13, pady=(6, 2))
-    tk.Label(upper, text='PERFORMANCE', fg=TEXT, bg=BG,
+
+    header = tk.Frame(host, bg=BG)
+    header.pack(fill='x', pady=(0, 5))
+    tk.Label(header, text='PERFORMANCE', bg=BG, fg=MUTED,
              font=('Segoe UI', 9, 'bold')).pack(side='left')
-    app.perf_status = tk.StringVar(value='Waiting for response')
-    tk.Label(upper, textvariable=app.perf_status, fg=MUTED, bg=BG,
-             font=('Segoe UI', 9)).pack(side='left', padx=(12, 0))
-    ttk.Button(upper, text='History', command=lambda: show_history(app)).pack(side='right')
-    cells = tk.Frame(host, bg=BG)
-    cells.pack(fill='x', padx=12, pady=(2, 9))
-    labels = [('speed','Generation'),('ttft','First token'),('tokens','Output tokens'),
-              ('elapsed','Response time'),('vram','GPU VRAM'),('ram','System RAM')]
+    ttk.Button(header, text='History', command=lambda: show_history(app)).pack(side='right')
+    app.perf_status = tk.StringVar(value='Waiting for a response')
+    tk.Label(host, textvariable=app.perf_status, bg=BG, fg=MUTED,
+             font=('Segoe UI', 8), anchor='w', justify='left',
+             wraplength=184).pack(fill='x', pady=(0, 7))
+
+    grid = tk.Frame(host, bg=BG)
+    grid.pack(fill='x')
     app.perf_vars = {}
-    for i, (key, title) in enumerate(labels):
-        cells.grid_columnconfigure(i, weight=1, uniform='perf')
-        frame = tk.Frame(cells, bg=BG)
-        frame.grid(row=0, column=i, sticky='ew', padx=3)
-        tk.Label(frame, text=title, fg=MUTED, bg=BG,
+    for i, (key, title) in enumerate((
+        ('speed', 'Generation'), ('ttft', 'First token'),
+        ('tokens', 'Output tokens'), ('elapsed', 'Response time'),
+    )):
+        grid.columnconfigure(i % 2, weight=1, uniform='perf')
+        cell = tk.Frame(grid, bg=BG)
+        cell.grid(row=i // 2, column=i % 2, sticky='ew', pady=(0, 7))
+        tk.Label(cell, text=title, bg=BG, fg=MUTED,
                  font=('Segoe UI', 8)).pack(anchor='w')
         var = tk.StringVar(value='--')
         app.perf_vars[key] = var
-        tk.Label(frame, textvariable=var, fg=TEXT, bg=BG,
-                 font=('Segoe UI', 10, 'bold')).pack(anchor='w')
+        tk.Label(cell, textvariable=var, bg=BG, fg=TEXT,
+                 font=('Segoe UI', 9, 'bold'), anchor='w',
+                 justify='left', wraplength=90).pack(anchor='w')
+
+    ttk.Separator(host).pack(fill='x', pady=(1, 8))
+    hardware = tk.Frame(host, bg=BG)
+    hardware.pack(fill='x')
+    for i, (key, title) in enumerate((('vram', 'GPU VRAM'), ('ram', 'System RAM'))):
+        hardware.columnconfigure(i, weight=1, uniform='hardware')
+        cell = tk.Frame(hardware, bg=BG)
+        cell.grid(row=0, column=i, sticky='ew')
+        tk.Label(cell, text=title, bg=BG, fg=MUTED,
+                 font=('Segoe UI', 8)).pack(anchor='w')
+        var = tk.StringVar(value='--')
+        app.perf_vars[key] = var
+        tk.Label(cell, textvariable=var, bg=BG, fg=TEXT,
+                 font=('Segoe UI', 9), justify='left',
+                 wraplength=90).pack(anchor='w')
 
 
 def update_metrics(app, sample):
@@ -58,13 +79,13 @@ def update_metrics(app, sample):
     if sample.get('error'):
         app.perf_status.set('Request failed')
     elif sample.get('active'):
-        app.perf_status.set('Streaming; live chunks are not token counts')
+        app.perf_status.set('Streaming; chunks are not tokens')
     elif source == 'server':
-        app.perf_status.set('Complete - server-reported timings')
+        app.perf_status.set('Measured by llama.cpp')
     elif source == 'estimated':
-        app.perf_status.set('Complete - token count / wall generation time')
+        app.perf_status.set('Estimated generation speed')
     else:
-        app.perf_status.set('Complete - token timings unavailable')
+        app.perf_status.set('Token timings unavailable')
 
 
 def update_hardware(app, sample):

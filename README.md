@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.8.0 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.8.1 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Visible Stop model controls (v0.7.6)
 
@@ -63,6 +63,21 @@ The Windows desktop Chat page now includes a compact, non-blocking performance p
 - A local **History** dialog listing previous per-model measurements. History is stored at `%LOCALAPPDATA%\LocalMoEStudio\performance_history.jsonl` with no chat prompts or responses.
 
 The dashboard polls physical memory through Windows and NVIDIA VRAM via `nvidia-smi` approximately every 3 seconds, in background threads. CUDA model inference itself must still be tested on NVIDIA hardware. Automated streaming and GUI tests cover the metrics and display.
+
+## Sidebar navigation and metrics (v0.8.1)
+
+The Chat page now has a **New chat** subitem in the sidebar. Models has a
+**Select a model** dropdown populated from complete local GGUF downloads,
+plus a link to browse the full Models page. Changing the selected model does
+not silently stop or start an inference server; the existing running-model
+warning still applies.
+
+Generation speed, time to first token, output tokens, response duration, and
+GPU/System RAM readings are now grouped at the bottom of the sidebar.
+The upper navigation/sidebar area scrolls independently, keeping metrics
+visible and preventing saved chats, Team Hub and Stop model controls from
+being hidden on shorter displays. The Chat composer remains pinned at the
+bottom. Existing chat histories, settings and model files are untouched.
 
 ## Minimal desktop UI (v0.8.0)
 

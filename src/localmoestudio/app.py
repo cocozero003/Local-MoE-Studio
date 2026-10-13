@@ -61,7 +61,7 @@ class LocalMoEStudio(PriorUI):
         self.title('Local MoE Studio — Private AI')
         self.hardware_label = tk.Label(self.sidebar, text='RAM / GPU: checking...',
                                        font=('Segoe UI', 9), fg=MUTED, bg=SIDE, justify='left')
-        self.hardware_label.pack(side='bottom', anchor='w', padx=19, pady=(0, 8))
+        # The pinned Performance panel displays GPU and RAM usage.
         self.after(1600, self._schedule_hardware)
         self.navigate('models')
         self._create_profiles_bar()
@@ -502,6 +502,24 @@ class LocalMoEStudio(PriorUI):
         self.installed_status.set(
             f'{len(models)} installed GGUF model(s). Select one and click Use and start.'
             if models else 'No GGUF models found. Download a model below or choose a GGUF file.')
+        self._update_sidebar_models(models)
+
+    def _update_sidebar_models(self, models):
+        """Synchronize the Models submenu with complete downloaded GGUF files."""
+        names = {}
+        for model in models:
+            if not model.get('complete'):
+                continue
+            path = str(model['path'])
+            label = str(model['name'])
+            if label in names:
+                label = f"{label} ({Path(model['location']).name})"
+            if label in names:
+                label = f"{label} ({len(names) + 1})"
+            names[label] = path
+        self.sidebar_model_paths = names
+        self.sidebar_model_combo.configure(values=list(names))
+        self._sync_sidebar_model_selection()
 
     def choose_local_gguf(self):
         """Select a local GGUF directly, without a Windows file association."""
@@ -528,6 +546,7 @@ class LocalMoEStudio(PriorUI):
                 return False
         self.vars['model'].set(str(path))
         self.model_name.configure(text=path.name)
+        self._sync_sidebar_model_selection()
         self.save_settings()
         self.installed_status.set('Selected model: ' + path.name + '. Click Start model or Use and start.')
         return True
@@ -808,15 +827,14 @@ class LocalMoEStudio(PriorUI):
         panel.pack(fill='x', padx=12, pady=(13, 3))
         tk.Label(panel, text='SAVED CONVERSATIONS', bg='#F8F8F8', fg='#747474',
                  font=('Segoe UI', 9, 'bold')).pack(anchor='w')
-        self.session_list = tk.Listbox(panel, height=7, relief='flat',
+        self.session_list = tk.Listbox(panel, height=5, relief='flat',
                        activestyle='none', bg='#F8F8F8', fg='#222222',
                        font=('Segoe UI', 9), selectmode='browse', exportselection=False)
         self.session_list.pack(fill='x', pady=4)
         self.session_list.bind('<<ListboxSelect>>', lambda event: self._open_session())
         actions = tk.Frame(panel, bg='#F8F8F8')
         actions.pack(fill='x')
-        ttk.Button(actions, text='New', command=self.new_chat).pack(side='left')
-        ttk.Button(actions, text='Delete', command=self._delete_session).pack(side='left', padx=4)
+        ttk.Button(actions, text='Delete chat', command=self._delete_session).pack(side='left', padx=4)
         self._session_ids = []
 
     def _refresh_sessions(self):

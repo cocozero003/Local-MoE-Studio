@@ -25,7 +25,6 @@ def build_chat(self):
     bar.grid(row=0, column=0, sticky='ew', padx=52, pady=(28, 10))
     tk.Label(bar, text='Chat', bg=BG, fg=TEXT,
              font=('Segoe UI', 18, 'bold')).pack(side='left')
-    ttk.Button(bar, text='New chat', command=self.new_chat).pack(side='right')
 
     model_bar = tk.Frame(frame, bg=BG)
     model_bar.grid(row=1, column=0, sticky='ew', padx=36)
@@ -34,8 +33,6 @@ def build_chat(self):
     self.model_name = tk.Label(model_bar, text='No model selected', bg=BG,
                                fg=TEXT, font=('Segoe UI', 10, 'bold'))
     self.model_name.pack(side='left', padx=9)
-    ttk.Button(model_bar, text='Model settings',
-               command=lambda: self.navigate('settings')).pack(side='right')
 
     center = tk.Frame(frame, bg=BG)
     center.grid(row=2, column=0, sticky='nsew', padx=72, pady=(14, 12))
@@ -50,11 +47,9 @@ def build_chat(self):
                                   foreground='#525252', spacing1=12)
 
     # Grid reserves the bottom row for the message composer.
-    from .performance_ui import build_strip
-    build_strip(self, frame, row=3)
     compose_shell = tk.Frame(frame, bg=PANEL, highlightbackground=LINE,
                              highlightthickness=1)
-    compose_shell.grid(row=4, column=0, sticky='ew', padx=64, pady=(4, 18))
+    compose_shell.grid(row=3, column=0, sticky='ew', padx=64, pady=(4, 18))
     self.compose_shell = compose_shell
     tk.Label(compose_shell, text='Message', bg=PANEL,
              fg=MUTED, font=('Segoe UI', 9)).pack(anchor='w', padx=15, pady=(11, 0))
