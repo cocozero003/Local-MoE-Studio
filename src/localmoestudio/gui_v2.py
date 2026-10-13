@@ -9,19 +9,19 @@ import json
 import os
 from .backend import Application as BackendApplication
 
-BG = '#FFFFFF'
-SIDE = '#F8F8F8'
-PANEL = '#F4F4F4'
-TEXT = '#242424'
-MUTED = '#808080'
-LINE = '#E8E8E8'
+BG = '#FBFBFC'
+SIDE = '#F7F7F8'
+PANEL = '#F3F4F6'
+TEXT = '#111827'
+MUTED = '#6B7280'
+LINE = '#E5E7EB'
 ACCENT = '#222222'
 
 class LocalMoEStudio(BackendApplication):
     def make_ui(self):
         self.title('Local MoE Studio')
-        self.geometry('1330x850')
-        self.minsize(970, 660)
+        self.geometry('1380x900')
+        self.minsize(1040, 700)
         self.configure(bg=BG)
         s = ttk.Style(self)
         s.theme_use('clam')
@@ -40,13 +40,13 @@ class LocalMoEStudio(BackendApplication):
 
         self.shell = tk.Frame(self, bg=BG)
         self.shell.pack(fill='both', expand=True)
-        self.sidebar = tk.Frame(self.shell, bg=SIDE, width=204, highlightbackground=LINE, highlightthickness=1)
+        self.sidebar = tk.Frame(self.shell, bg=SIDE, width=220, highlightbackground=LINE, highlightthickness=1)
         self.sidebar.pack(side='left', fill='y')
         self.sidebar.pack_propagate(False)
         brand = tk.Frame(self.sidebar, bg=SIDE)
         brand.pack(fill='x', pady=(21,22), padx=17)
         tk.Label(brand, text='Local MoE Studio', font=('Segoe UI', 13, 'bold'), fg=TEXT, bg=SIDE).pack(anchor='w')
-        tk.Label(brand, text='Powered by llama.cpp', font=('Segoe UI', 9), fg=MUTED, bg=SIDE).pack(anchor='w', pady=(3,0))
+        tk.Label(brand, text='Private local AI', font=('Segoe UI', 9), fg=MUTED, bg=SIDE).pack(anchor='w', pady=(3,0))
         self.nav_buttons = {}
         for key, caption in [('chat','Chat'), ('models','Models'), ('settings','Settings'), ('logs','Server logs')]:
             b = tk.Button(self.sidebar, text=caption, anchor='w', relief='flat', bd=0,
@@ -79,7 +79,7 @@ class LocalMoEStudio(BackendApplication):
         for frame in self.views.values(): frame.pack_forget()
         self.views[tab].pack(fill='both', expand=True)
         for k,b in self.nav_buttons.items():
-            b.configure(bg='#EDEDED' if k==tab else SIDE,
+            b.configure(bg='#ECEEF2' if k==tab else SIDE,
                         font=('Segoe UI', 11, 'bold' if k==tab else 'normal'))
 
     def build_chat(self):
@@ -108,9 +108,9 @@ class LocalMoEStudio(BackendApplication):
 
     def _welcome_chat(self):
         self.transcript.configure(state='normal')
-        self.transcript.insert('end', '\n\n                     Your private local AI workspace\n\n')
-        self.transcript.insert('end', '             Install an engine and choose a model in Models.\n')
-        self.transcript.insert('end', '                  MoE expert weights can stay in system RAM.\n')
+        self.transcript.insert('end', '\nWelcome to Local MoE Studio.\n\n')
+        self.transcript.insert('end', 'Choose a model in Models, then start chatting.\n')
+        self.transcript.insert('end', 'MoE experts can stay in system RAM when GPU memory is limited.\n')
         self.transcript.configure(state='disabled')
 
     def build_models(self):

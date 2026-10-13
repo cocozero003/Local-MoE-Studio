@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.7.6 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.8.0 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Visible Stop model controls (v0.7.6)
 
@@ -63,6 +63,10 @@ The Windows desktop Chat page now includes a compact, non-blocking performance p
 - A local **History** dialog listing previous per-model measurements. History is stored at `%LOCALAPPDATA%\LocalMoEStudio\performance_history.jsonl` with no chat prompts or responses.
 
 The dashboard polls physical memory through Windows and NVIDIA VRAM via `nvidia-smi` approximately every 3 seconds, in background threads. CUDA model inference itself must still be tested on NVIDIA hardware. Automated streaming and GUI tests cover the metrics and display.
+
+## Minimal desktop UI (v0.8.0)
+
+Refined white/gray desktop styling inspired by streamlined local model interfaces. The sidebar, chat transcript, composer and performance strip have more consistent spacing and typography. No inference, download, Team Hub or Stop model functionality was intentionally changed. Local MoE Studio is independent of Ollama.
 
 ## Features
 

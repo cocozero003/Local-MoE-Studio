@@ -4,14 +4,14 @@ from tkinter import ttk
 from .backend import USER_DATA
 from .performance import read_history
 
-BG = '#F6F7F9'
-MUTED = '#68707D'
-TEXT = '#22252B'
+BG = '#F4F5F7'
+MUTED = '#6B7280'
+TEXT = '#111827'
 
 
 def build_strip(app, parent, row=3):
-    host = tk.Frame(parent, bg=BG, highlightbackground='#E7E9EC', highlightthickness=1)
-    host.grid(row=row, column=0, sticky='ew', padx=48, pady=(0, 8))
+    host = tk.Frame(parent, bg=BG, highlightbackground='#E5E7EB', highlightthickness=1)
+    host.grid(row=row, column=0, sticky='ew', padx=64, pady=(0, 10))
     app.perf_panel = host
     upper = tk.Frame(host, bg=BG)
     upper.pack(fill='x', padx=13, pady=(6, 2))

@@ -8,11 +8,11 @@ from tkinter import ttk, filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
 
-BG = '#FFFFFF'
-PANEL = '#F4F4F4'
-TEXT = '#242424'
-MUTED = '#808080'
-LINE = '#E8E8E8'
+BG = '#FBFBFC'
+PANEL = '#F4F5F7'
+TEXT = '#111827'
+MUTED = '#6B7280'
+LINE = '#E5E7EB'
 
 
 def build_chat(self):
@@ -22,7 +22,7 @@ def build_chat(self):
     frame.grid_rowconfigure(2, weight=1)
 
     bar = tk.Frame(frame, bg=BG)
-    bar.grid(row=0, column=0, sticky='ew', padx=36, pady=(22, 10))
+    bar.grid(row=0, column=0, sticky='ew', padx=52, pady=(28, 10))
     tk.Label(bar, text='Chat', bg=BG, fg=TEXT,
              font=('Segoe UI', 18, 'bold')).pack(side='left')
     ttk.Button(bar, text='New chat', command=self.new_chat).pack(side='right')
@@ -38,13 +38,13 @@ def build_chat(self):
                command=lambda: self.navigate('settings')).pack(side='right')
 
     center = tk.Frame(frame, bg=BG)
-    center.grid(row=2, column=0, sticky='nsew', padx=54, pady=(10, 8))
+    center.grid(row=2, column=0, sticky='nsew', padx=72, pady=(14, 12))
     center.grid_rowconfigure(0, weight=1)
     center.grid_columnconfigure(0, weight=1)
     self.transcript = ScrolledText(center, wrap='word', state='disabled',
                                   relief='flat', bd=0, bg=BG, fg=TEXT,
                                   insertbackground=TEXT, font=('Segoe UI', 11),
-                                  padx=15, pady=10, spacing3=8)
+                                  padx=22, pady=18, spacing1=4, spacing2=2, spacing3=12)
     self.transcript.grid(row=0, column=0, sticky='nsew')
     self.transcript.tag_configure('heading', font=('Segoe UI', 10, 'bold'),
                                   foreground='#525252', spacing1=12)
@@ -54,9 +54,9 @@ def build_chat(self):
     build_strip(self, frame, row=3)
     compose_shell = tk.Frame(frame, bg=PANEL, highlightbackground=LINE,
                              highlightthickness=1)
-    compose_shell.grid(row=4, column=0, sticky='ew', padx=48, pady=(0, 13))
+    compose_shell.grid(row=4, column=0, sticky='ew', padx=64, pady=(4, 18))
     self.compose_shell = compose_shell
-    tk.Label(compose_shell, text='Message your local model', bg=PANEL,
+    tk.Label(compose_shell, text='Message', bg=PANEL,
              fg=MUTED, font=('Segoe UI', 9)).pack(anchor='w', padx=15, pady=(11, 0))
     self.prompt = tk.Text(compose_shell, height=3, wrap='word', bg=PANEL,
                           fg=TEXT, relief='flat', bd=0,
