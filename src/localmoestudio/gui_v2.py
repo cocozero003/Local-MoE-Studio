@@ -86,6 +86,14 @@ class LocalMoEStudio(BackendApplication):
         from .chat_composer import build_chat
         build_chat(self)
 
+    def _on_performance_update(self, snapshot):
+        from .performance_ui import update_metrics
+        update_metrics(self, snapshot)
+
+    def _on_performance_hardware(self, snapshot):
+        from .performance_ui import update_hardware
+        update_hardware(self, snapshot)
+
     def _composer_enter(self, event):
         from .chat_composer import composer_enter
         return composer_enter(self, event)

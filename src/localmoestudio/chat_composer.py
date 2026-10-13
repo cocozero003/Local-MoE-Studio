@@ -50,9 +50,11 @@ def build_chat(self):
                                   foreground='#525252', spacing1=12)
 
     # Grid reserves the bottom row for the message composer.
+    from .performance_ui import build_strip
+    build_strip(self, frame, row=3)
     compose_shell = tk.Frame(frame, bg=PANEL, highlightbackground=LINE,
                              highlightthickness=1)
-    compose_shell.grid(row=3, column=0, sticky='ew', padx=48, pady=(0, 19))
+    compose_shell.grid(row=4, column=0, sticky='ew', padx=48, pady=(0, 13))
     self.compose_shell = compose_shell
     tk.Label(compose_shell, text='Message your local model', bg=PANEL,
              fg=MUTED, font=('Segoe UI', 9)).pack(anchor='w', padx=15, pady=(11, 0))

@@ -606,35 +606,19 @@ class LocalMoEStudio(PriorUI):
             self.navigate('chat')
 
     def _schedule_hardware(self):
+        """Poll hardware in a worker thread; keep all Tk updates on the UI thread."""
+        from .performance import sample_hardware
         def work():
-            result = []
-            try:
-                output = subprocess.check_output(['nvidia-smi', '--query-gpu=memory.used,memory.total',
-                     '--format=csv,noheader,nounits'], stderr=subprocess.DEVNULL,timeout=4,
-                     encoding='utf-8',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0)).strip().splitlines()[0]
-                used, total = [x.strip() for x in output.split(',')[:2]]
-                result.append(f'GPU: {used}/{total} MiB')
-            except Exception:
-                result.append('GPU: nvidia-smi unavailable')
-            try:
-                if os.name == 'nt':
-                    import ctypes
-                    class MEMORYSTATUSEX(ctypes.Structure):
-                        _fields_ = [('dwLength',ctypes.c_ulong),('dwMemoryLoad',ctypes.c_ulong),
-                                   ('ullTotalPhys',ctypes.c_ulonglong),('ullAvailPhys',ctypes.c_ulonglong),
-                                   ('ullTotalPageFile',ctypes.c_ulonglong),('ullAvailPageFile',ctypes.c_ulonglong),
-                                   ('ullTotalVirtual',ctypes.c_ulonglong),('ullAvailVirtual',ctypes.c_ulonglong),
-                                   ('ullAvailExtendedVirtual',ctypes.c_ulonglong)]
-                    mem=MEMORYSTATUSEX(); mem.dwLength=ctypes.sizeof(mem)
-                    if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(mem)):
-                        result.append(f'RAM: {(mem.ullTotalPhys-mem.ullAvailPhys)/2**30:.1f}/{mem.ullTotalPhys/2**30:.0f} GiB')
-            except Exception:
-                pass
-            self.hub_events.put(('hardware', '\n'.join(result)))
-        threading.Thread(target=work,daemon=True).start()
-        self.after(8000,self._schedule_hardware)
+            sample = sample_hardware()
+            used, total = sample.get('gpu_used_mib'), sample.get('gpu_total_mib')
+            gpu = f'GPU: {used:.0f}/{total:.0f} MiB' if total else 'GPU: unavailable'
+            used, total = sample.get('ram_used_gib'), sample.get('ram_total_gib')
+            ram = f'RAM: {used:.1f}/{total:.0f} GiB' if total else 'RAM: unavailable'
+            self.hub_events.put(('hardware', gpu + '\n' + ram))
+            self.events.put(('perf_hardware', sample))
+        threading.Thread(target=work, daemon=True).start()
+        self.after(3000, self._schedule_hardware)
 
-    # Intercept hardware events in one queue without touching Tk from worker threads.
     def _drain_hub_events(self):
         try:
             while True:

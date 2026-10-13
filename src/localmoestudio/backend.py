@@ -13,6 +13,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
+from .performance import GenerationMetrics, append_history, tokenize_output_count
 
 ROOT = Path(__file__).resolve().parent
 USER_DATA = Path(os.getenv('LOCALAPPDATA') or (Path.home() / '.localmoestudio')) / 'LocalMoEStudio'
@@ -36,6 +37,7 @@ class Application(tk.Tk):
         self.process = None
         self.events = queue.Queue()
         self.history = []
+        self.metrics = None
         self.busy = False
         self.ready = False
         self.config_data = self.load_settings()
@@ -284,6 +286,8 @@ class Application(tk.Tk):
         self.append_text(self.transcript, '\nYOU\n' + user_text + '\n\nASSISTANT\n')
         self.busy = True
         self.status.set('Generating locally...')
+        self.metrics = GenerationMetrics(self.vars['model'].get().strip())
+        self.events.put(('perf_started', self.metrics.snapshot()))
         payload_history = ([{'role':'system','content':self.vars['system'].get()}]
                            if self.vars['system'].get().strip() else []) + self.history + [
                            {'role':'user','content':user_text}]
@@ -291,12 +295,30 @@ class Application(tk.Tk):
 
     def chat_request(self, user_text, messages, temp, max_tokens):
         content = ''
+        metrics = self.metrics or GenerationMetrics(self.vars['model'].get().strip())
         try:
-            req = urllib.request.Request(self.endpoint('/v1/chat/completions'),
-                data=json.dumps({'messages':messages, 'stream':True, 'temperature':temp,
-                                 'max_tokens':max_tokens}).encode('utf-8'),
-                headers={'Content-Type':'application/json'}, method='POST')
-            with urllib.request.urlopen(req, timeout=3600) as response:
+            base = {'messages': messages, 'stream': True,
+                    'temperature': temp, 'max_tokens': max_tokens}
+            # Current llama.cpp supports include_usage. Retry without this
+            # optional standard feature on older builds returning HTTP 400.
+            response = None
+            for extra_usage in (True, False):
+                payload = dict(base)
+                if extra_usage:
+                    payload['stream_options'] = {'include_usage': True}
+                req = urllib.request.Request(
+                    self.endpoint('/v1/chat/completions'),
+                    data=json.dumps(payload).encode('utf-8'),
+                    headers={'Content-Type':'application/json'}, method='POST')
+                try:
+                    response = urllib.request.urlopen(req, timeout=3600)
+                    break
+                except urllib.error.HTTPError as exc:
+                    if extra_usage and exc.code == 400:
+                        continue
+                    raise
+            last_update = 0.0
+            with response:
                 for raw in response:
                     line = raw.decode('utf-8', errors='replace').strip()
                     if not line.startswith('data: '):
@@ -306,15 +328,32 @@ class Application(tk.Tk):
                         break
                     try:
                         chunk = json.loads(data)
-                        delta = chunk.get('choices', [{}])[0].get('delta', {})
-                        part = delta.get('content') or ''
-                    except (ValueError, IndexError, TypeError):
+                        if not isinstance(chunk, dict):
+                            continue
+                        part = metrics.ingest(chunk)
+                    except (ValueError, TypeError, IndexError):
                         continue
                     if part:
                         content += part
                         self.events.put(('token', part))
+                    now = time.perf_counter()
+                    if part and now - last_update >= 0.3:
+                        self.events.put(('perf_progress', metrics.snapshot(now)))
+                        last_update = now
+            completed_at = time.perf_counter()
+            if (content and not metrics.timings.get('predicted_n')
+                    and not metrics.usage.get('completion_tokens')):
+                try:
+                    count = tokenize_output_count(self.endpoint('/tokenize'), content)
+                    if count is not None:
+                        metrics.usage['completion_tokens'] = count
+                except Exception:
+                    # Optional tokenizer endpoint must never break chat.
+                    pass
+            self.events.put(('perf_done', metrics.finish(now=completed_at)))
             self.events.put(('chat_done', (user_text, content)))
         except Exception as ex:
+            self.events.put(('perf_done', metrics.finish(error=str(ex))))
             self.events.put(('chat_error', str(ex)))
 
     def drain_events(self):
@@ -331,6 +370,19 @@ class Application(tk.Tk):
                     self.status.set(data)
                 elif typ == 'token':
                     self.append_text(self.transcript, data)
+                elif typ in ('perf_started', 'perf_progress', 'perf_done'):
+                    callback = getattr(self, '_on_performance_update', None)
+                    if callback:
+                        callback(data)
+                    if typ == 'perf_done':
+                        try:
+                            append_history(USER_DATA / 'performance_history.jsonl', data)
+                        except OSError:
+                            pass
+                elif typ == 'perf_hardware':
+                    callback = getattr(self, '_on_performance_hardware', None)
+                    if callback:
+                        callback(data)
                 elif typ == 'chat_done':
                     self.history.extend([{'role':'user', 'content':data[0]},
                                          {'role':'assistant', 'content':data[1]}])

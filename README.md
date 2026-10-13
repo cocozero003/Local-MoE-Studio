@@ -2,7 +2,7 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.7.4 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.7.5 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Installed GGUF library (v0.7.3)
 
@@ -32,6 +32,19 @@ Fixes Windows **WinError 32** caused by attempting to rename the existing `llama
 - This does **not** restart or interrupt a running external llama.cpp process. Stop active inference before updating if you want to switch immediately.
 
 After updating the source, close the app, reopen it via `START_WINDOWS.bat`, and load your existing GGUF using **Models → Installed models → Use and start**. You do not need to click **Install / Update llama.cpp** to chat if the installed server is already working.
+
+## Live performance dashboard (v0.7.5)
+
+The Windows desktop Chat page now includes a compact, non-blocking performance panel. It tracks:
+
+- **Generation speed (tok/s)** from llama.cpp `timings.predicted_per_second` when the server reports it.
+- If the server reports only token usage, the generation speed is labeled as an **estimate** using observed wall generation time.
+- For streams that report neither, the app asks the **local** llama.cpp `/tokenize` endpoint for the output token count after completion. The resulting wall-clock tok/s is marked **estimated**.
+- While a stream is in progress, the app shows **chunks/s** rather than misleadingly treating every streaming chunk as one token.
+- Time to first content, response duration, generated tokens, dedicated NVIDIA GPU VRAM and system physical RAM.
+- A local **History** dialog listing previous per-model measurements. History is stored at `%LOCALAPPDATA%\LocalMoEStudio\performance_history.jsonl` with no chat prompts or responses.
+
+The dashboard polls physical memory through Windows and NVIDIA VRAM via `nvidia-smi` approximately every 3 seconds, in background threads. CUDA model inference itself must still be tested on NVIDIA hardware. Automated streaming and GUI tests cover the metrics and display.
 
 ## Features
 
