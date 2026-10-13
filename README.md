@@ -2,12 +2,15 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.5.1 alpha / developer preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.6.0 alpha / developer preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
 ## Features
 
 - One-click installation/update of official llama.cpp Windows releases (CUDA or CPU mode).
-- Browse Hugging Face GGUF repositories and download a selected **single-file** quantization.
+- **Expanded live GGUF catalog**: Gemma, Qwen, Llama, Mistral, DeepSeek, Phi, GPT-OSS and other families.
+- **Auto-refresh of model listings at startup** (default on), with an offline cache and a manual Refresh button.
+- Search Hugging Face directly, filter by model family and sort by newest changes or download popularity.
+- Browse repository GGUF files and download a selected **single-file** quantization only after confirmation.
 - Beginner presets: Fast, Balanced, Large MoE (low VRAM), CPU only.
 - Advanced MoE CPU expert placement, GPU layers, context length, Flash Attention, KV cache controls.
 - Local streaming chat and saved conversations.
@@ -18,13 +21,17 @@
 
 ![Settings interface](docs/images/settings.png)
 
+## Model discovery update (v0.6.0)
+
+The original model browser had a closed four-model Qwen list. This version adds public Hugging Face GGUF discovery, model-family filtering, free-text search, sorting, and locally saved catalog metadata. New GGUF repos can appear on the next launch without changing the app code. **Startup refresh transfers only model metadata, not model weights.** Searches require internet access; cached results remain usable offline. Gated and private repositories are excluded from the automatic catalog, and model compatibility/licensing should be checked before downloading.
+
+The starter catalog includes tested repository URLs for examples from Qwen, Gemma, Llama, Mistral, DeepSeek, Microsoft Phi and GPT-OSS. They are examples, not endorsements or a guarantee that the repository supports your hardware. Downloads and llama.cpp inference have not been end-to-end validated on Windows/NVIDIA hardware.
+
 ## Installer fix (v0.5.1)
 
-The one-click installer now detects official llama.cpp Windows packages from upstream GitHub **pre-release** builds (such as `b11580`). It also recognizes both historical and current CUDA runtime ZIP filenames and pairs the exact CUDA versions. v0.5.0 incorrectly skipped these builds, producing `No matching official Windows archive found`.
+The one-click installer now detects official llama.cpp Windows packages from upstream GitHub *pre-release* builds (such as `b11580`). It also recognizes both historical and current CUDA runtime filenames and strictly pairs matching CUDA versions. A previous release incorrectly skipped these builds, causing `No matching official Windows archive found`.
 
-**To update:** Close Local MoE Studio, replace the app files with the latest GitHub source, and restart via `START_WINDOWS.bat`. Your GGUF models and chat history are stored in the Windows per-user application-data folder and should remain intact. Retry **Models → Install / Update llama.cpp**, selecting `cuda12`.
-
-This is a selector/test fix; the full CUDA download and NVIDIA inference still require on-device validation.
+Existing v0.5.0 users: replace your app files with the latest source from GitHub, keep your existing per-user models and chat history, then retry **Models → Install / Update llama.cpp**. Downloads are several hundred MB; an NVIDIA driver compatible with the chosen CUDA release is still required.
 
 ## Quick start (Windows)
 
@@ -32,7 +39,7 @@ This is a selector/test fix; the full CUDA download and NVIDIA inference still r
 2. Click **Code → Download ZIP** on GitHub; extract the repository.
 3. Double-click `START_WINDOWS.bat`.
 4. In **Models**, click **Install / Update llama.cpp**.
-5. Select a Hugging Face GGUF repository and download a quantized model.
+5. Let **Discover GGUF models** refresh its list (or click **Refresh latest**), filter by family such as Gemma or Qwen, choose a repository, then click **Find GGUF files** and download a quantized model.
 6. Apply the **Large MoE (low VRAM)** preset for compatible MoE models and click **Start model**.
 
 Full instructions: [Windows installation](docs/INSTALL_WINDOWS.md).
@@ -69,7 +76,7 @@ local-moe-studio/
 
 ## Privacy
 
-Chat history and preferences are kept on the device in the current user's application-data folder (unencrypted local files). Model metadata/engine downloads contact GitHub and Hugging Face only when requested. The app does not add analytics/telemetry.
+Chat history and preferences are kept on the device in the current user's application-data folder (unencrypted local files). By default, app startup contacts **Hugging Face** to refresh public model **metadata**. You can disable this on the Models page. Search, model-file downloads, and optional llama.cpp engine updates contact Hugging Face or GitHub when requested. Model weights are **not** downloaded automatically. The app does not add analytics/telemetry.
 
 ## Tests and builds
 

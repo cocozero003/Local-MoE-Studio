@@ -20,6 +20,7 @@ USER_DATA.mkdir(parents=True, exist_ok=True)
 SETTINGS = USER_DATA / 'settings.json'
 DEFAULTS = {
     'server': '', 'model': '', 'context': '4096', 'gpu_layers': 'auto',
+    'auto_refresh_catalog': True,
     'moe': 'all', 'moe_layers': '16', 'threads': 'auto', 'flash': True,
     'kv': 'q8_0', 'fit': True, 'fit_margin': '1024',
     'port': '8081', 'temp': '0.7', 'max_tokens': '1024',

@@ -12,7 +12,10 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from .backend import Application as Core
-from .model_hub import CATALOG, human_size, list_gguf_files, validate_repo, download_file
+from .model_hub import (
+    CATALOG, FAMILIES, seed_catalog, discover_models, search_hub_models, load_catalog_cache,
+    save_catalog_cache, human_size, list_gguf_files, validate_repo, download_file,
+)
 from .engine_installer import install_engine
 from .backend import USER_DATA
 from .sessions import SessionStore
@@ -36,6 +39,11 @@ class LocalMoEStudio(PriorUI):
         self.is_downloading = False
         self.engine_cancel = threading.Event()
         self.engine_installing = False
+        self.catalog_cache_path = USER_DATA / 'model_catalog.json'
+        self.catalog_models, self.catalog_cache_date = load_catalog_cache(self.catalog_cache_path)
+        if not self.catalog_models:
+            self.catalog_models = [m for m in seed_catalog() if m]
+        self.catalog_loading = False
         self.session_store = SessionStore(USER_DATA / 'sessions')
         self.active_session = None
         super().__init__()
@@ -43,10 +51,12 @@ class LocalMoEStudio(PriorUI):
         self._refresh_sessions()
         self.after(300, self._check_engine_installed)
         self.after(140, self._drain_hub_events)
+        if self.vars['auto_refresh_catalog'].get():
+            self.after(700, self.refresh_catalog)  # Metadata only; never model weights.
 
     def make_ui(self):
         super().make_ui()
-        self.title('Local MoE Studio 5 — Private AI')
+        self.title('Local MoE Studio — Private AI')
         self.hardware_label = tk.Label(self.sidebar, text='RAM / GPU: checking...',
                                        font=('Segoe UI', 9), fg=MUTED, bg=SIDE, justify='left')
         self.hardware_label.pack(side='bottom', anchor='w', padx=19, pady=(0, 8))
@@ -57,10 +67,23 @@ class LocalMoEStudio(PriorUI):
 
     def build_models(self):
         f = self.views['models']
-        shell = tk.Frame(f, bg=BG)
-        shell.pack(fill='both', expand=True, padx=39, pady=25)
+        # The catalog and quantization tables are scrollable on smaller screens.
+        outer = tk.Frame(f, bg=BG)
+        outer.pack(fill='both', expand=True)
+        self.models_canvas = tk.Canvas(outer, bg=BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(outer, orient='vertical', command=self.models_canvas.yview)
+        self.models_canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+        self.models_canvas.pack(side='left', fill='both', expand=True)
+        shell = tk.Frame(self.models_canvas, bg=BG)
+        window = self.models_canvas.create_window((0,0), window=shell, anchor='nw')
+        shell.bind('<Configure>', lambda e: self.models_canvas.configure(scrollregion=self.models_canvas.bbox('all')))
+        self.models_canvas.bind('<Configure>',lambda e: self.models_canvas.itemconfigure(window,width=e.width))
+        shell.configure(padx=39,pady=25)
+        self.models_canvas.bind('<Enter>',lambda e:self.models_canvas.bind_all('<MouseWheel>',self._scroll_models))
+        self.models_canvas.bind('<Leave>',lambda e:self.models_canvas.unbind_all('<MouseWheel>'))
         tk.Label(shell, text='Models', bg=BG, fg=TEXT, font=('Segoe UI', 20, 'bold')).pack(anchor='w')
-        tk.Label(shell, text='First install the inference engine, then download a GGUF model and start chatting.',
+        tk.Label(shell, text='Browse public GGUF models, select a quantization, then download and start chatting.',
                  bg=BG, fg=MUTED, font=('Segoe UI', 10)).pack(anchor='w', pady=(5, 10))
         engine = tk.Frame(shell, bg=PANEL, padx=12, pady=10)
         engine.pack(fill='x', pady=(0, 15))
@@ -82,12 +105,69 @@ class LocalMoEStudio(PriorUI):
         self.engine_bar.pack(fill='x')
         tk.Label(engine, text='CUDA 12 is recommended for most NVIDIA Windows PCs. Downloads official GitHub release binaries and matching CUDA DLLs.',
                  bg=PANEL, fg=MUTED, anchor='w', wraplength=800, justify='left').pack(fill='x',pady=(6,0))
-        tk.Label(shell, text='2. Choose a GGUF model', bg=BG, fg=TEXT,
-                 font=('Segoe UI', 11, 'bold')).pack(anchor='w', pady=(0, 8))
+        ttk.Checkbutton(shell,text='Refresh model listings on startup (metadata only)',
+                        variable=self.vars['auto_refresh_catalog'],
+                        command=self.save_settings).pack(anchor='w',pady=(0,10))
+        tk.Label(shell, text='2. Discover GGUF models', bg=BG, fg=TEXT,
+                 font=('Segoe UI', 11, 'bold')).pack(anchor='w', pady=(0,8))
+        filters=tk.Frame(shell,bg=BG)
+        filters.pack(fill='x',pady=(1,6))
+        tk.Label(filters,text='Family',bg=BG,fg=TEXT).pack(side='left')
+        self.catalog_family=tk.StringVar(value='All')
+        family_box=ttk.Combobox(filters,textvariable=self.catalog_family,
+                 values=FAMILIES,state='readonly',width=13)
+        family_box.pack(side='left',padx=(6,14))
+        family_box.bind('<<ComboboxSelected>>',self._render_catalog)
+        tk.Label(filters,text='Sort',bg=BG,fg=TEXT).pack(side='left')
+        self.catalog_sort=tk.StringVar(value='Newest updates')
+        sort_box=ttk.Combobox(filters,textvariable=self.catalog_sort,
+                 values=('Newest updates','Most downloaded'),state='readonly',width=19)
+        sort_box.pack(side='left',padx=(6,14))
+        sort_box.bind('<<ComboboxSelected>>',self._render_catalog)
+        self.refresh_catalog_btn=ttk.Button(filters,text='Refresh latest',command=self.refresh_catalog)
+        self.refresh_catalog_btn.pack(side='right')
+        search_bar=tk.Frame(shell,bg=BG)
+        search_bar.pack(fill='x',pady=(3,8))
+        tk.Label(search_bar,text='Find a model',bg=BG,fg=TEXT).pack(side='left')
+        self.catalog_search=tk.StringVar()
+        search_entry=ttk.Entry(search_bar,textvariable=self.catalog_search)
+        search_entry.pack(side='left',fill='x',expand=True,padx=(8,8))
+        search_entry.bind('<KeyRelease>',self._render_catalog)
+        search_entry.bind('<Return>',lambda e:self.search_catalog_online())
+        self.hub_search_btn=ttk.Button(search_bar,text='Search Hugging Face',command=self.search_catalog_online)
+        self.hub_search_btn.pack(side='left')
+        self.catalog_status=tk.StringVar(value='Loading local cached catalog...')
+        tk.Label(shell,textvariable=self.catalog_status,bg=BG,fg=MUTED,
+                 anchor='w',justify='left',wraplength=950).pack(fill='x',pady=(0,6))
+        catalog_frame=tk.Frame(shell,bg=BG)
+        catalog_frame.pack(fill='x',pady=(1,8))
+        self.catalog_tree=ttk.Treeview(catalog_frame,columns=('family','downloads','updated'),
+                                      show='tree headings',height=7)
+        self.catalog_tree.heading('#0',text='Hugging Face GGUF repository')
+        self.catalog_tree.heading('family',text='Family')
+        self.catalog_tree.heading('downloads',text='Downloads')
+        self.catalog_tree.heading('updated',text='Updated')
+        self.catalog_tree.column('#0',width=465,stretch=True)
+        self.catalog_tree.column('family',width=105,stretch=False)
+        self.catalog_tree.column('downloads',width=100,stretch=False,anchor='e')
+        self.catalog_tree.column('updated',width=110,stretch=False)
+        self.catalog_tree.pack(side='left',fill='x',expand=True)
+        catalog_scroll=ttk.Scrollbar(catalog_frame,orient='vertical',command=self.catalog_tree.yview)
+        self.catalog_tree.configure(yscrollcommand=catalog_scroll.set)
+        catalog_scroll.pack(side='right',fill='y')
+        self.catalog_tree.bind('<<TreeviewSelect>>',self._choose_catalog_model)
+        self.catalog_tree.bind('<Double-1>',lambda e:self.search_repo())
+        self.catalog_visible={}
+        tk.Label(shell,text='Select a repository above, then click Find GGUF files to choose its quantization.',
+                 bg=BG,fg=MUTED,anchor='w').pack(fill='x',pady=(1,8))
+        self._render_catalog()
+        tk.Label(shell, text='3. Choose GGUF quantization',bg=BG,fg=TEXT,
+                 font=('Segoe UI',11,'bold')).pack(anchor='w',pady=(7,8))
+
 
         row = tk.Frame(shell, bg=BG)
         row.pack(fill='x', pady=(0, 8))
-        tk.Label(row, text='Suggested model', bg=BG, fg=TEXT).pack(side='left')
+        tk.Label(row, text='Quick picks', bg=BG, fg=TEXT).pack(side='left')
         self.catalog_name = tk.StringVar(value=CATALOG[0][0])
         combo = ttk.Combobox(row, textvariable=self.catalog_name,
                              values=[c[0] for c in CATALOG], state='readonly', width=32)
@@ -109,7 +189,7 @@ class LocalMoEStudio(PriorUI):
                  bg=BG, fg=TEXT).pack(anchor='w', pady=(2, 6))
         tv_frame = tk.Frame(center, bg=BG)
         tv_frame.pack(fill='both', expand=True)
-        self.hub_tree = ttk.Treeview(tv_frame, columns=('size',), show='tree headings', height=10)
+        self.hub_tree = ttk.Treeview(tv_frame, columns=('size',), show='tree headings', height=7)
         self.hub_tree.heading('#0', text='GGUF file')
         self.hub_tree.heading('size', text='Download size')
         self.hub_tree.column('#0', width=510, stretch=True)
@@ -142,6 +222,80 @@ class LocalMoEStudio(PriorUI):
         ttk.Button(localrow, text='Browse', command=self.browse_model).pack(side='left', padx=6)
         ttk.Button(localrow, text='Load settings', command=lambda:self.navigate('settings')).pack(side='left')
         ttk.Button(localrow, text='Start model', style='Primary.TButton', command=self._start_from_hub).pack(side='left',padx=(6,0))
+
+    def _scroll_models(self,event):
+        if self.views['models'].winfo_ismapped():
+            self.models_canvas.yview_scroll(-int(event.delta/120),'units')
+
+    def _render_catalog(self,event=None):
+        """Render cached/online GGUF model repositories; no network call."""
+        if not hasattr(self,'catalog_tree'): return
+        family=self.catalog_family.get()
+        needle=self.catalog_search.get().strip().casefold()
+        models=[m for m in self.catalog_models
+                if (family=='All' or m['family']==family)
+                and (not needle or needle in m['id'].casefold())]
+        if self.catalog_sort.get()=='Most downloaded':
+            models.sort(key=lambda m:(m['downloads'],m['updated']),reverse=True)
+        else:
+            models.sort(key=lambda m:(m['updated'],m['downloads']),reverse=True)
+        self.catalog_tree.delete(*self.catalog_tree.get_children())
+        self.catalog_visible={}
+        for i,m in enumerate(models[:350]):
+            iid=str(i)
+            self.catalog_visible[iid]=m
+            self.catalog_tree.insert('', 'end', iid=iid, text=m['id'],
+                                     values=(m['family'],f"{m['downloads']:,}",m['updated']))
+        if not self.catalog_loading:
+            self.catalog_status.set(f'{len(models)} matching repositories. '
+                + ('Cached: '+self.catalog_cache_date[:16] if self.catalog_cache_date else 'Refresh for current models.')
+                + ' Model weights are downloaded only when you click Download selected model.')
+
+    def _choose_catalog_model(self,event=None):
+        selection=self.catalog_tree.selection()
+        if not selection:return
+        model=self.catalog_visible.get(selection[0])
+        if not model:return
+        self.repo_var.set(model['id'])
+        self.repo_desc.configure(text=f"{model['family']} / {model['downloads']:,} Hugging Face downloads. Verify publisher and license before use.")
+
+    def refresh_catalog(self):
+        """Refresh on every startup, but never download multi-GB model weights."""
+        if self.catalog_loading:return
+        self.catalog_loading=True
+        self.refresh_catalog_btn.configure(state='disabled')
+        self.catalog_status.set('Checking Hugging Face for latest public GGUF model repositories...')
+        def work():
+            try:
+                models,warnings=discover_models()
+                if not models: raise RuntimeError('No public GGUF repositories returned')
+                save_catalog_cache(self.catalog_cache_path,models)
+                self.hub_events.put(('catalog_done',(models,warnings)))
+            except Exception as exc:
+                self.hub_events.put(('catalog_error',str(exc)))
+        threading.Thread(target=work,daemon=True).start()
+
+    def search_catalog_online(self):
+        """Search beyond predefined families (e.g. SmolLM, Granite, Command-R)."""
+        query=self.catalog_search.get().strip()
+        if not query:
+            self.refresh_catalog();return
+        if self.catalog_loading:return
+        self.catalog_loading=True
+        self.hub_search_btn.configure(state='disabled')
+        self.catalog_status.set('Searching Hugging Face for '+query+'...')
+        def work():
+            try:
+                models=search_hub_models(query,limit=100)
+                self.hub_events.put(('catalog_search_done',(query,models)))
+            except Exception as exc:
+                self.hub_events.put(('catalog_error',str(exc)))
+        threading.Thread(target=work,daemon=True).start()
+
+    def _catalog_idle(self):
+        self.catalog_loading=False
+        self.refresh_catalog_btn.configure(state='normal')
+        self.hub_search_btn.configure(state='normal')
 
     def _check_engine_installed(self):
         local = USER_DATA / 'engine' / 'llama.cpp-cuda12' / 'llama-server.exe'
@@ -188,6 +342,12 @@ class LocalMoEStudio(PriorUI):
             if name == self.catalog_name.get():
                 self.repo_var.set(repo)
                 self.repo_desc.configure(text=description)
+                if not repo and name != 'Custom Hugging Face repo':
+                    family=name.split(' ')[0]
+                    if family in FAMILIES:
+                        self.catalog_family.set(family)
+                        self.catalog_search.set('')
+                        self._render_catalog()
                 break
 
     def search_repo(self):
@@ -298,7 +458,29 @@ class LocalMoEStudio(PriorUI):
         try:
             while True:
                 typ, data = self.hub_events.get_nowait()
-                if typ == 'engine_progress':
+                if typ == 'catalog_done':
+                    models,warnings=data
+                    self.catalog_models=models
+                    from datetime import datetime,timezone
+                    self.catalog_cache_date=datetime.now(timezone.utc).isoformat()
+                    self._catalog_idle()
+                    self._render_catalog()
+                    self.catalog_status.set(f'Refreshed {len(models)} public GGUF repositories. '
+                        + (f'{len(warnings)} search sources unavailable; results may be partial.' if warnings else 'Latest model listings ready.'))
+                elif typ == 'catalog_search_done':
+                    query,models=data
+                    by_id={m['id'].lower():m for m in self.catalog_models}
+                    for model in models: by_id[model['id'].lower()]=model
+                    self.catalog_models=list(by_id.values())
+                    self.catalog_family.set('All')
+                    self._catalog_idle()
+                    self._render_catalog()
+                    self.catalog_status.set(f'Found {len(models)} public GGUF repositories for "{query}"; showing matching models.')
+                elif typ == 'catalog_error':
+                    self._catalog_idle()
+                    self._render_catalog()
+                    self.catalog_status.set('Could not refresh online: '+data+'. Using cached models if available.')
+                elif typ == 'engine_progress':
                     name, n, total=data
                     self.engine_state.set(name + (f' — {human_size(n)} / {human_size(total)}' if total else ''))
                     self.engine_bar['value'] = min(100, n/total*100) if total else 0
