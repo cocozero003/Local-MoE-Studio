@@ -29,7 +29,7 @@ class InstalledModelUITests(unittest.TestCase):
                     self.assertEqual(len(window.installed_paths), 1)
                     window.installed_tree.selection_set('0')
                     window.use_installed_model()
-                    self.assertEqual(Path(window.vars['model'].get()), model)
+                    self.assertTrue(Path(window.vars['model'].get()).samefile(model))
                     self.assertEqual(window.model_name.cget('text'), model.name)
                 finally:
                     window.destroy()

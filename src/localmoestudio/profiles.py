@@ -8,7 +8,9 @@ PROFILES = {
 }
 def apply_profile(vars, profile):
     values=PROFILES[profile]
-    for key, value in values.items(): vars[key].set(value)
+    for key, value in values.items():
+        if key != 'description':
+            vars[key].set(value)
 
 def infer_profile(model_name):
     name=model_name.lower()
