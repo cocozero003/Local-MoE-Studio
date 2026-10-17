@@ -56,19 +56,34 @@ def run_request(url, model, prompt):
     }
 
 
+def discover_model(url):
+    """Resolve the actual model identifier advertised by the local server."""
+    endpoint = url.rstrip("/") + "/v1/models"
+    with urllib.request.urlopen(endpoint, timeout=15) as response:
+        payload = json.load(response)
+    items = payload.get("data") or []
+    if not items or not isinstance(items[0].get("id"), str):
+        raise ValueError("No model listed by the local server.")
+    return items[0]["id"]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Local 8GB inference benchmark")
     parser.add_argument("--url", default="http://127.0.0.1:8081")
-    parser.add_argument("--model", default="local")
+    parser.add_argument("--model", default="auto", help="auto reads /v1/models")
     parser.add_argument("--runs", type=int, default=2)
     parser.add_argument("--output", default="benchmark_local.json")
     args = parser.parse_args()
     if not 1 <= args.runs <= 20:
         parser.error("--runs must be from 1 to 20")
+    try:
+        model = discover_model(args.url) if args.model == "auto" else args.model
+    except (urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+        raise SystemExit(f"Cannot discover local model: {exc}") from exc
     data = {
         "time_utc": datetime.now(timezone.utc).isoformat(),
         "endpoint": args.url,
-        "model": args.model,
+        "model": model,
         "runs_per_case": args.runs,
         "note": "No prompt text or generated content is persisted. "
                 "Wall time includes request overhead and is not pure decode speed.",
@@ -78,7 +93,7 @@ def main():
         observations = []
         for number in range(args.runs):
             try:
-                item = run_request(args.url, args.model, prompt)
+                item = run_request(args.url, model, prompt)
             except (urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
                 raise SystemExit(f"Benchmark stopped during {label}: {exc}") from exc
             observations.append(item)
