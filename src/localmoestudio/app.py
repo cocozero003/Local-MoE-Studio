@@ -747,7 +747,7 @@ class LocalMoEStudio(PriorUI):
         bar.pack(side='bottom', fill='x')
         tk.Label(bar, text='Easy setup:', bg='#F4F4F4', fg='#222222',
                  font=('Segoe UI', 10, 'bold')).pack(side='left', padx=(0, 8))
-        self.profile_choice = tk.StringVar(value='GPU first (RAM fallback)')
+        self.profile_choice = tk.StringVar(value='RTX 5060 8GB - Fast')
         ttk.Combobox(bar, textvariable=self.profile_choice, state='readonly', width=29,
                      values=list(PROFILES)).pack(side='left', padx=6)
         ttk.Button(bar, text='Apply preset', command=self._apply_easy_profile).pack(side='left', padx=5)

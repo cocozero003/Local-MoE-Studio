@@ -15,6 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 from .performance import GenerationMetrics, append_history, tokenize_output_count
 from .model_support import memory_flags
+from .runtime_tuning import performance_flags
 from .completion_control import (CONTINUE_PROMPT, finish_reason, wants_auto_continue,
                                  continuation_messages, append_answer)
 
@@ -25,8 +26,10 @@ SETTINGS = USER_DATA / 'settings.json'
 DEFAULTS = {
     'server': '', 'model': '', 'context': '4096', 'gpu_layers': 'auto',
     'auto_refresh_catalog': True,
-    'moe': 'all', 'moe_layers': '16', 'dense_ffn': '0', 'threads': 'auto', 'flash': True,
+    'moe': 'disabled', 'moe_layers': '16', 'dense_ffn': '0', 'threads': 'auto', 'flash': True,
     'kv': 'q8_0', 'fit': True, 'fit_margin': '1024',
+    'parallel': '1', 'batch_size': '1024', 'ubatch_size': '256',
+    'cache_ram': '0', 'cache_reuse': '0', 'prompt_cache': True,
     'port': '8081', 'temp': '0.7', 'max_tokens': '1024',
     'system': 'You are a helpful private assistant. Reply in the language of the user.',
     'auto_continue': True, 'use_saved_chats': True
@@ -180,7 +183,9 @@ class Application(tk.Tk):
                 '-ctk', self.vars['kv'].get(), '-ctv', self.vars['kv'].get(),
                 '-fit', 'on' if self.vars['fit'].get() else 'off',
                 '-fitt', str(margin)]
-        args.extend(memory_flags({key: var.get() for key, var in self.vars.items()}, model, exe))
+        config = {key: var.get() for key, var in self.vars.items()}
+        args.extend(memory_flags(config, model, exe))
+        args.extend(performance_flags(config, exe))
         threads = self.vars['threads'].get().strip()
         if threads != 'auto':
             if int(threads) < 1:

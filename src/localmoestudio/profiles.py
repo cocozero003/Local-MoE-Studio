@@ -2,6 +2,22 @@
 from pathlib import Path
 
 PROFILES = {
+  'RTX 5060 8GB - Fast': {
+    'description': 'Single-user 4K profile for a 3B-8B Q4 GGUF that mostly fits GPU memory. '
+                   'Uses Flash Attention, Q8 KV, one slot and capped batching. '
+                   'This does not reproduce Strata custom expert kernels.',
+    'moe':'disabled', 'dense_ffn':'0', 'gpu_layers':'auto', 'context':'4096',
+    'kv':'q8_0', 'fit':True, 'fit_margin':'768', 'flash':True,
+    'parallel':'1', 'batch_size':'1024', 'ubatch_size':'256',
+    'cache_ram':'0', 'cache_reuse':'0', 'prompt_cache':True},
+  'RTX 5060 8GB - RAG': {
+    'description': 'For Thai/English FAQ and PDF RAG, prioritizing 8K context, '
+                   'one local request and conservative physical batching. '
+                   'Try Q4 KV or a smaller model if VRAM is insufficient.',
+    'moe':'disabled', 'dense_ffn':'0', 'gpu_layers':'auto', 'context':'8192',
+    'kv':'q8_0', 'fit':True, 'fit_margin':'1024', 'flash':True,
+    'parallel':'1', 'batch_size':'512', 'ubatch_size':'128',
+    'cache_ram':'0', 'cache_reuse':'0', 'prompt_cache':True},
  'Fast (small model)': {'description': 'Prefer speed for models that mostly fit GPU memory.',
    'moe':'disabled','dense_ffn':'0','gpu_layers':'auto','context':'4096',
    'kv':'q8_0','fit':True,'fit_margin':'1024','flash':True},

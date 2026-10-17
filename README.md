@@ -1,5 +1,15 @@
 # Local MoE Studio
 
+## RTX 5060 8 GB performance tuning (proposed)
+
+This branch adds **RTX 5060 8GB - Fast** and **RTX 5060 8GB - RAG** presets,
+bounded server cache RAM where supported, single-slot and batch-size tuning,
+and a built-in local latency/throughput benchmark. The changes use
+standard llama.cpp flags; they **do not** reproduce Strata's proprietary
+expert-cache implementation or guarantee a speed improvement without
+hardware measurements. See [RTX 5060 8 GB setup and benchmarks](docs/RTX5060_8GB_PERFORMANCE.md).
+
+
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
 > **Status: v0.8.5 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.

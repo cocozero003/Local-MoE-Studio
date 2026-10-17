@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 from .backend import DEFAULTS, SETTINGS
 from .model_support import memory_flags
+from .runtime_tuning import performance_flags
 from .team_server import start_team_server
 
 
@@ -31,6 +32,7 @@ def build_backend_command(config):
           '-ctk',kv,'-ctv',kv,'-fit','on' if config.get('fit',True) else 'off',
           '-fitt',str(int(config.get('fit_margin',1024)))]
     args.extend(memory_flags(config, model, exe))
+    args.extend(performance_flags(config, exe))
     threads=str(config.get('threads','auto'))
     if threads!='auto':args.extend(['-t',str(int(threads))])
     return args,port
