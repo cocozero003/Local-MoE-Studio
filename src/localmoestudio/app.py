@@ -23,6 +23,7 @@ from .chat_memory import (is_question_list_query, is_history_query,
                           format_question_list, recall_context)
 from .local_library import list_installed_models
 from .profiles import PROFILES, apply_profile, infer_profile, recommendation
+from .model_support import inspect_gguf, memory_advice
 
 BG = '#FFFFFF'
 SIDE = '#F8F8F8'
@@ -546,6 +547,22 @@ class LocalMoEStudio(PriorUI):
                 messagebox.showwarning('Model running',
                                        'Stop the current model before switching to another GGUF.')
                 return False
+        info = inspect_gguf(path)
+        if info['kind'] == 'dense' and path.stat().st_size > 8 * 2**30 and (
+                self.vars['moe'].get() != 'disabled' or
+                str(self.vars['dense_ffn'].get()) == '0'):
+            if messagebox.askyesno('Large dense model detected',
+                'This appears to be a large dense GGUF, not a Mixture of Experts model.\n\n'
+                'Apply the Large Dense (low VRAM) preset? It keeps feed-forward weights '
+                'in system RAM and uses a recent llama.cpp engine. This may be slow.'):
+                apply_profile(self.vars, 'Large Dense (low VRAM)')
+                self.profile_choice.set('Large Dense (low VRAM)')
+        elif info['kind'] == 'moe' and str(self.vars['dense_ffn'].get()) != '0':
+            if messagebox.askyesno('MoE model detected',
+                'Dense CPU FFN offload is currently selected. Apply the Large MoE '
+                '(low VRAM) preset for this expert model?'):
+                apply_profile(self.vars, 'Large MoE (low VRAM)')
+                self.profile_choice.set('Large MoE (low VRAM)')
         self.vars['model'].set(str(path))
         self.model_name.configure(text=path.name)
         self._sync_sidebar_model_selection()
@@ -820,8 +837,12 @@ class LocalMoEStudio(PriorUI):
         if not Path(path).is_file():
             messagebox.showinfo('Choose a model', 'Download or select a GGUF file in Models first.')
             return
-        size = Path(path).stat().st_size
-        advice = recommendation(name, size, self.vars['moe'].get())
+        from .performance import sample_hardware
+        sample = sample_hardware()
+        ram = sample.get('ram_total_gib')
+        vram_mib = sample.get('gpu_total_mib')
+        advice = memory_advice(path, ram_gib=ram,
+                               vram_gib=(vram_mib / 1024 if vram_mib else None))
         messagebox.showinfo('Model fit estimate', advice)
 
     def _create_session_panel(self):

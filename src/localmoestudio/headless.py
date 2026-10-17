@@ -5,6 +5,7 @@ import os
 import subprocess
 from pathlib import Path
 from .backend import DEFAULTS, SETTINGS
+from .model_support import memory_flags
 from .team_server import start_team_server
 
 
@@ -29,10 +30,7 @@ def build_backend_command(config):
           '-c',str(context),'-ngl',ngl,'-fa','on' if config.get('flash',True) else 'off',
           '-ctk',kv,'-ctv',kv,'-fit','on' if config.get('fit',True) else 'off',
           '-fitt',str(int(config.get('fit_margin',1024)))]
-    moe=str(config.get('moe','disabled'))
-    if moe=='all':args.append('--cpu-moe')
-    elif moe=='first N layers':args.extend(['--n-cpu-moe',str(int(config.get('moe_layers',16)))])
-    elif moe!='disabled':raise ValueError('Invalid MoE setting')
+    args.extend(memory_flags(config, model, exe))
     threads=str(config.get('threads','auto'))
     if threads!='auto':args.extend(['-t',str(int(threads))])
     return args,port

@@ -264,12 +264,14 @@ class LocalMoEStudio(BackendApplication):
         self._section(main,'Engine and model')
         self._file_setting(main,'llama-server.exe','server',self.browse_server)
         self._file_setting(main,'GGUF model file','model',self.browse_model)
-        self._section(main,'Memory and MoE expert offloading')
+        self._section(main,'Memory: dense and MoE offloading')
         self._select(main,'GPU layers','gpu_layers',['auto','all','0','5','10','20','30','40','99'],
                      'Auto tries to fit memory; use lower values if VRAM runs out.')
         self._select(main,'MoE expert placement','moe',['all','first N layers','disabled'],
                      'All: place MoE expert tensors in system RAM (llama.cpp --cpu-moe).')
         self._input(main,'CPU MoE first N layers','moe_layers','Only when placement is first N layers.')
+        self._select(main,'Dense CPU FFN layers','dense_ffn',['0','4','8','16','24','999'],
+                     'For dense models like Qwen3.5 27B: 999 keeps all dense FFN weights in system RAM. Requires a recent llama.cpp build; 0 disables.')
         self._input(main,'Context length','context','Start with 4096 tokens for a 6 GB GPU.')
         self._select(main,'KV cache type','kv',['q8_0','f16','q4_0'],'Q8_0 typically uses less VRAM than F16.')
         self._check(main,'Enable Flash Attention','flash')

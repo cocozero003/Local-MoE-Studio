@@ -14,6 +14,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 from .performance import GenerationMetrics, append_history, tokenize_output_count
+from .model_support import memory_flags
 from .completion_control import (CONTINUE_PROMPT, finish_reason, wants_auto_continue,
                                  continuation_messages, append_answer)
 
@@ -24,7 +25,7 @@ SETTINGS = USER_DATA / 'settings.json'
 DEFAULTS = {
     'server': '', 'model': '', 'context': '4096', 'gpu_layers': 'auto',
     'auto_refresh_catalog': True,
-    'moe': 'all', 'moe_layers': '16', 'threads': 'auto', 'flash': True,
+    'moe': 'all', 'moe_layers': '16', 'dense_ffn': '0', 'threads': 'auto', 'flash': True,
     'kv': 'q8_0', 'fit': True, 'fit_margin': '1024',
     'port': '8081', 'temp': '0.7', 'max_tokens': '1024',
     'system': 'You are a helpful private assistant. Reply in the language of the user.',
@@ -179,14 +180,7 @@ class Application(tk.Tk):
                 '-ctk', self.vars['kv'].get(), '-ctv', self.vars['kv'].get(),
                 '-fit', 'on' if self.vars['fit'].get() else 'off',
                 '-fitt', str(margin)]
-        moe = self.vars['moe'].get()
-        if moe == 'all':
-            args.append('--cpu-moe')
-        elif moe == 'first N layers':
-            n = int(self.vars['moe_layers'].get())
-            if n < 0:
-                raise ValueError('MoE CPU layers must not be negative.')
-            args += ['--n-cpu-moe', str(n)]
+        args.extend(memory_flags({key: var.get() for key, var in self.vars.items()}, model, exe))
         threads = self.vars['threads'].get().strip()
         if threads != 'auto':
             if int(threads) < 1:

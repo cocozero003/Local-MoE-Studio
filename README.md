@@ -2,7 +2,19 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.8.4 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.8.5 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+
+## Large dense model support (v0.8.5)
+
+- New **Large Dense (low VRAM)** easy preset for quantized dense models such as Qwen3.5 27B.
+- New **Dense CPU FFN layers** setting (0, 4, 8, 16, 24 or 999) in Settings.
+- The app inspects **GGUF header metadata** to distinguish dense vs. Mixture-of-Experts models, falling back to clearly labeled, unverified filename heuristics when metadata cannot be read.
+- For dense models, llama.cpp receives \`--n-cpu-ffn N\`; for MoE models, the existing \`--cpu-moe\` or \`--n-cpu-moe N\` flags remain. Conflicting configurations are rejected with explanations.
+- Both the graphical desktop and headless Team Hub server use the same memory-argument validator.
+- When choosing a large dense model with MoE settings still active, the GUI offers to apply the new preset.
+- Before using dense FFN offloading, the app checks whether the selected llama.cpp binary advertises \`--n-cpu-ffn\`; if not, update the engine in Models.
+
+**Recommended first test for 6 GB VRAM + 64 GB RAM:** Qwen3.5 27B Q4_K_M GGUF, Large Dense preset, 4096 context, Q8 KV cache, Flash Attention, auto GPU fitting and 1024 MiB reserve. This runs a *quantized full 27B architecture*, not full-precision BF16. Generation may be much slower than smaller GPU-resident models. A model may still fail to load because of available RAM, model-format incompatibility, CUDA driver issues or context buffers. Current release is an alpha; NVIDIA/CUDA inference has not been validated on your specific machine.
 
 ## Visible Stop model controls (v0.7.6)
 
