@@ -26,7 +26,7 @@ SETTINGS = USER_DATA / 'settings.json'
 DEFAULTS = {
     'server': '', 'model': '', 'context': '4096', 'gpu_layers': 'auto',
     'auto_refresh_catalog': True,
-    'moe': 'all', 'moe_layers': '16', 'dense_ffn': '0', 'threads': 'auto', 'flash': True,
+    'moe': 'disabled', 'moe_layers': '16', 'dense_ffn': '0', 'threads': 'auto', 'flash': True,
     'kv': 'q8_0', 'fit': True, 'fit_margin': '1024',
     'parallel': '1', 'batch_size': '1024', 'ubatch_size': '256',
     'cache_ram': '0', 'cache_reuse': '0', 'prompt_cache': True,
