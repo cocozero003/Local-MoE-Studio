@@ -99,13 +99,13 @@ From your Local MoE Studio repository:
 
 ```powershell
 # Baseline after loading a model in Local MoE Studio (default port 8081)
-py -3.11 scripts\benchmark_local.py --url http://127.0.0.1:8081 --model local --runs 3 --output baseline.json
+py -3.11 scripts\benchmark_local.py --url http://127.0.0.1:8081 --model auto --runs 3 --output baseline.json
 
 # Stop the model, apply RTX 5060 8GB - Fast, start the SAME GGUF and repeat
-py -3.11 scripts\benchmark_local.py --url http://127.0.0.1:8081 --model local --runs 3 --output tuned.json
+py -3.11 scripts\benchmark_local.py --url http://127.0.0.1:8081 --model auto --runs 3 --output tuned.json
 ```
 
-The script sends the same fixed synthetic prompts each time, including
+The script detects the loaded model ID via /v1/models and sends the same fixed synthetic prompts each time, including
 a Thai question and a longer RAG-style input. Reports include observed
 wall seconds and, when returned by the engine, prompt/decode tok/s.
 **No input prompt or model response is saved in the JSON report.**
