@@ -277,6 +277,18 @@ class LocalMoEStudio(BackendApplication):
         self._check(main,'Enable Flash Attention','flash')
         self._check(main,'Automatic VRAM fitting','fit')
         self._input(main,'Free VRAM target (MiB)','fit_margin','Start with 1024; lower only after testing.')
+        self._section(main,'RTX 5060 / low-VRAM performance')
+        self._select(main,'Parallel slots','parallel',['1','2','4'],
+                     'Use 1 for maximum single-user VRAM and throughput.')
+        self._select(main,'Prompt batch tokens','batch_size',['512','1024','2048','4096'],
+                     'Larger batches can improve prefill but need more memory.')
+        self._select(main,'Physical batch tokens','ubatch_size',['64','128','256','512'],
+                     'Start at 256 for 8 GB; reduce after out-of-memory errors.')
+        self._input(main,'RAM prompt cache (MiB)','cache_ram',
+                    '0 saves RAM on a 32 GB system; supported engines only.')
+        self._check(main,'Prompt prefix reuse','prompt_cache')
+        self._input(main,'Prefix cache reuse threshold','cache_reuse',
+                    '0 disables KV shifting. Use 256 only after measuring.')
         self._section(main,'Server and chat')
         self._input(main,'Local API port','port','Always binds to 127.0.0.1; cannot be accessed over LAN.')
         self._input(main,'CPU threads','threads','Auto or positive integer.')
