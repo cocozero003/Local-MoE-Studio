@@ -2,7 +2,21 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.8.5 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.9.0 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+
+## Thai FDA precedent mode (v0.9.0)
+
+Local MoE Studio Team Hub can now run the Thai FDA V3.16/V3.17 precedent workflow inside the same ChatGPT-style browser chat.
+
+- Select **Thai FDA precedent** from the chat mode selector.
+- V3.16 retrieves historical meeting precedents using pre-decision features only.
+- V3.17 creates a five-case review portfolio: best analogue, supporting candidate, counter precedent, boundary alternative and diversity fill.
+- **Search my uploaded documents** can be enabled at the same time. Use this for current laws, notifications and guidance; the grounding prompt explicitly tells the local model that current law outranks historical precedent.
+- The browser also exposes authenticated `/api/fda/status` and `/api/fda/analyze` endpoints.
+- The controlled historical corpus and fitted retrieval artifacts are **not** stored in GitHub. They stay under `%LOCALAPPDATA%\LocalMoEStudio\thai_fda_precedent` unless `LOCALMOE_FDA_DATA` points elsewhere.
+- The base application remains dependency-free. Install this feature with the supplied `SETUP_THAI_FDA_WINDOWS.bat`, which installs only the optional `.[thai-fda]` dependencies and the controlled data archive.
+
+See [docs/THAI_FDA_PRECEDENT.md](docs/THAI_FDA_PRECEDENT.md).
 
 ## Large dense model support (v0.8.5)
 
