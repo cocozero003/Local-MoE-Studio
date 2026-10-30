@@ -20,7 +20,10 @@
 </aside><main class="main"><header class="topbar"><div><span id="page-title">Chat</span><span class="mode-label">Local inference</span></div>
 <div class="status"><span class="dot" id="model-dot"></span><span id="model-state">Checking model</span></div></header>
 <div id="page-chat" class="page chat-page"><div id="chat-history" class="messages"></div>
-<div class="composer"><label class="doc-toggle"><input type="checkbox" id="use-documents"> Search my uploaded documents</label>
+<div class="composer"><div class="chat-controls">
+<label class="mode-select">Mode <select id="chat-mode"><option value="general">General chat</option><option value="thai_fda">Thai FDA precedent</option></select></label>
+<label class="doc-toggle"><input type="checkbox" id="use-documents"> Search my uploaded documents</label>
+<span id="fda-mode-state" class="info"></span></div>
 <textarea id="message" rows="3" placeholder="Ask a question... (Ctrl+Enter to send)"></textarea>
 <div class="composer-actions"><span id="send-status">Ready</span><button class="primary" id="send-message">Send</button></div></div>
 </div>
