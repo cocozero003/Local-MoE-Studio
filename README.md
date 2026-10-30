@@ -15,6 +15,7 @@ Local MoE Studio Team Hub can now run the Thai FDA V3.16/V3.17 precedent workflo
 - The browser also exposes authenticated `/api/fda/status` and `/api/fda/analyze` endpoints.
 - The controlled historical corpus and fitted retrieval artifacts are **not** stored in GitHub. They stay under `%LOCALAPPDATA%\LocalMoEStudio\thai_fda_precedent` unless `LOCALMOE_FDA_DATA` points elsewhere.
 - The base application remains dependency-free. Install this feature with the supplied `SETUP_THAI_FDA_WINDOWS.bat`, which installs only the optional `.[thai-fda]` dependencies and the controlled data archive.
+- After setup, `START_THAI_FDA_TEAM_HUB_WINDOWS.bat` verifies the V3.17 runtime data before starting the normal Team Hub on port 8765.
 
 See [docs/THAI_FDA_PRECEDENT.md](docs/THAI_FDA_PRECEDENT.md).
 
