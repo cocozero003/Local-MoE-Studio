@@ -1,6 +1,6 @@
 "use strict";
 const $ = id => document.getElementById(id);
-const state = { csrf: null, user: null, currentChat: null, sending: false, setup: false };
+const state = { csrf: null, user: null, currentChat: null, sending: false, setup: false, fdaReady: false };
 const fmt = value => new Date(value * 1000).toLocaleString();
 function notify(message) { const node = $('toast'); node.textContent = message; node.classList.remove('hidden'); setTimeout(() => node.classList.add('hidden'), 5000); }
 async function request(path, { method = 'GET', data = null } = {}) {
@@ -31,7 +31,7 @@ async function refreshIdentity() {
     $('endpoint').textContent = location.origin + '/v1';
     await refreshChats(); await refreshDocuments(); await refreshKeys();
     if (me.role === 'admin') await refreshUsers();
-    await checkModel(); setInterval(checkModel, 12000);
+    await checkModel(); await checkFDA(); setInterval(checkModel, 12000);
     navigate('chat');
   } catch (_) {
     const setup = await request('/api/setup-required');
@@ -46,6 +46,19 @@ async function checkModel() {
     $('model-dot').classList.toggle('online', s.backend_ready);
   } catch (_) { $('model-state').textContent = 'Connection lost'; $('model-dot').classList.remove('online'); }
 }
+async function checkFDA() {
+  const option = $('chat-mode').querySelector('option[value="thai_fda"]');
+  try {
+    const s = await request('/api/fda/status');
+    state.fdaReady = Boolean(s.available);
+    option.disabled = !state.fdaReady;
+    $('fda-mode-state').textContent = state.fdaReady ? 'V3.17 ready' : 'Thai FDA data/setup required';
+    $('fda-mode-state').title = state.fdaReady ? s.engine : ((s.missing_files || []).join(', ') || s.dependency_error || 'Unavailable');
+    if (!state.fdaReady && $('chat-mode').value === 'thai_fda') $('chat-mode').value = 'general';
+  } catch (_) {
+    state.fdaReady = false; option.disabled = true; $('fda-mode-state').textContent = 'Thai FDA mode unavailable';
+  }
+}
 function navigate(page) {
   ['chat','documents','settings','users'].forEach(p => $('page-' + p).classList.toggle('hidden', p !== page));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('current', b.dataset.page === page));
@@ -58,11 +71,26 @@ function renderMessage(role, content) {
   $('chat-history').scrollTop = $('chat-history').scrollHeight;
   return text;
 }
+function renderFDAMeta(bodyNode, fda) {
+  if (!fda || bodyNode.parentNode.querySelector('.fda-meta')) return;
+  const box = escapeNode('div', '', 'fda-meta');
+  const head = escapeNode('div', 'Thai FDA V3.17 precedent portfolio', 'fda-meta-title');
+  box.append(head);
+  const candidate = fda.candidate_class || 'not established';
+  box.append(escapeNode('div', 'Candidate hypothesis: ' + candidate + ' | Human authorization required', 'fda-meta-note'));
+  (fda.precedents || []).slice(0,5).forEach((p, i) => {
+    const line = (i + 1) + '. ' + (p.portfolio_role || 'PRECEDENT') + ' — ' +
+      (p.precedent_product || p.precedent_case_id || 'case') + ' (' + (p.precedent_year || '-') + ')' +
+      (p.historical_class ? ' | historical: ' + p.historical_class : '');
+    box.append(escapeNode('div', line, 'fda-meta-row'));
+  });
+  bodyNode.parentNode.append(box);
+}
 function welcome() {
   $('chat-history').replaceChildren();
   const w = escapeNode('div', '', 'welcome');
   w.append(escapeNode('h1', 'Your private AI workspace'));
-  w.append(escapeNode('p', 'Choose a conversation or ask something new. The model runs locally on your server computer.'));
+  w.append(escapeNode('p', 'Choose General chat or Thai FDA precedent mode. The model and precedent retrieval run locally on your server computer.'));
   $('chat-history').append(w);
 }
 async function refreshChats() {
@@ -98,7 +126,14 @@ async function sendMessage() {
     $('send-status').textContent = 'Waiting for local GPU...';
     const response = await fetch('/api/chat/send', {
       method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},
-      body:JSON.stringify({message:text,conversation_id:state.currentChat,use_documents:$('use-documents').checked})
+      body:JSON.stringify({
+        message:text,
+        conversation_id:state.currentChat,
+        use_documents:$('use-documents').checked,
+        mode:$('chat-mode').value,
+        fda_cutoff_year:2026,
+        fda_retrieval_mode:'classification'
+      })
     });
     if (!response.ok) { const error=await response.json(); throw new Error(error.error || 'Chat failed'); }
     const reader = response.body.getReader(); const decoder=new TextDecoder(); let buffer = '';
@@ -112,7 +147,15 @@ async function sendMessage() {
         if (!data) continue;
         let payload; try {payload=JSON.parse(data);}catch(_){continue;}
         if(evt==='delta') { assistant.textContent += payload.text; $('chat-history').scrollTop=$('chat-history').scrollHeight; }
-        if(evt==='meta' && payload.sources?.length) { $('send-status').textContent='Using ' + payload.sources.length + ' document excerpt(s)'; }
+        if(evt==='meta') {
+          if (payload.fda) {
+            renderFDAMeta(assistant,payload.fda);
+            $('send-status').textContent='Thai FDA: using ' + (payload.fda.precedents || []).length + ' precedents' +
+              (payload.sources?.length ? ' + ' + payload.sources.length + ' document excerpt(s)' : '');
+          } else if (payload.sources?.length) {
+            $('send-status').textContent='Using ' + payload.sources.length + ' document excerpt(s)';
+          }
+        }
         if(evt==='error') throw new Error(payload.error);
       }
     }
