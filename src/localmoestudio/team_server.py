@@ -29,6 +29,7 @@ from xml.etree import ElementTree
 
 from .backend import USER_DATA
 from .team_db import TeamDB
+from .thai_fda import analyze as fda_analyze, grounding_context as fda_grounding_context, status as fda_status
 
 LOG = logging.getLogger(__name__)
 WEB_ROOT = Path(__file__).resolve().parent / 'web'
@@ -270,6 +271,8 @@ class TeamHandler(BaseHTTPRequestHandler):
         if path=='/api/status':
             return self._json(200,{'backend_ready':self._is_ready(),'multi_user':True,
                                    'lan':self.server.lan})
+        if path=='/api/fda/status':
+            return self._json(200,fda_status())
         if path=='/api/conversations':
             return self._json(200,{'items':db.conversations(user['id'])})
         match=re.fullmatch(r'/api/conversations/(\d+)',path)
@@ -365,6 +368,20 @@ class TeamHandler(BaseHTTPRequestHandler):
             except (ValueError,KeyError,binascii.Error,zipfile.BadZipFile,RuntimeError) as exc:
                 return self._error(400,str(exc))
             return self._json(201,{'id':doc_id,'name':name,'characters':len(text)})
+        if path=='/api/fda/analyze':
+            try:
+                text=str(data.get('text','')).strip()
+                if not text or len(text)>MAX_MESSAGE:
+                    return self._error(400,'text must be 1-12000 characters')
+                cutoff=max(2019,min(2030,int(data.get('cutoff_year',2026))))
+                mode=str(data.get('retrieval_mode','classification'))
+                top_k=max(1,min(10,int(data.get('top_k',5))))
+                result=fda_analyze(text,cutoff_year=cutoff,mode=mode,top_k=top_k)
+                return self._json(200,result)
+            except RuntimeError as exc:
+                return self._error(503,str(exc))
+            except (ValueError,TypeError) as exc:
+                return self._error(400,str(exc))
         if path=='/api/chat/send':
             return self._chat(user,data,browser=True)
         if path=='/v1/chat/completions':
@@ -381,6 +398,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                 history=[{'role':r['role'],'content':r['content']} for r in db.messages(user['id'],conv)][-16:]
                 messages=history+[{'role':'user','content':question}]
                 include_docs=bool(data.get('use_documents',False))
+                fda_enabled=str(data.get('mode','general')).lower()=='thai_fda'
             else:
                 conv=None
                 messages=data.get('messages',[])
@@ -391,13 +409,27 @@ class TeamHandler(BaseHTTPRequestHandler):
                     return self._error(400,'Invalid message roles, content or length')
                 question=next((m['content'] for m in reversed(messages) if m['role']=='user'),'')
                 include_docs=bool(data.get('rag',False))
+                fda_enabled=bool(data.get('thai_fda',False))
             if not question or len(question)>MAX_MESSAGE:
                 return self._error(400,'Message must be 1-12000 characters')
             sources=db.search_documents(user['id'],question) if include_docs else []
+            contexts=[]
             if sources:
-                messages=[{'role':'system','content':rag_context(sources)}]+messages
-            max_tokens=max(1,min(4096,int(data.get('max_tokens',900))))
-            temperature=max(0,min(2,float(data.get('temperature',0.7))))
+                contexts.append(rag_context(sources))
+            fda_result=None
+            if fda_enabled:
+                try:
+                    cutoff=max(2019,min(2030,int(data.get('fda_cutoff_year',2026))))
+                    retrieval_mode=str(data.get('fda_retrieval_mode','classification'))
+                    fda_result=fda_analyze(question,cutoff_year=cutoff,mode=retrieval_mode,top_k=5)
+                    contexts.append(fda_grounding_context(fda_result))
+                except RuntimeError as exc:
+                    return self._error(503,str(exc))
+            if contexts:
+                messages=[{'role':'system','content':'\n\n'.join(contexts)}]+messages
+            max_tokens=max(1,min(4096,int(data.get('max_tokens',1200 if fda_enabled else 900))))
+            default_temp=0.2 if fda_enabled else 0.7
+            temperature=max(0,min(2,float(data.get('temperature',default_temp))))
             stream=True if browser else bool(data.get('stream',False))
         except (ValueError,TypeError):
             return self._error(400,'Invalid chat parameters')
@@ -419,7 +451,15 @@ class TeamHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 streaming_started = True
                 if browser:
-                    self._sse('meta',{'sources':[{'name':s['name'],'chunk':s['seq']+1} for s in sources]})
+                    meta={'sources':[{'name':s['name'],'chunk':s['seq']+1} for s in sources]}
+                    if fda_result:
+                        meta['fda']={
+                            'candidate_class':fda_result.get('query',{}).get('candidate_class',''),
+                            'version':fda_result.get('version','V3.17'),
+                            'precedents':fda_result.get('precedents',[]),
+                            'human_authorization_required':True,
+                        }
+                    self._sse('meta',meta)
                 result=[]
                 for line in response:
                     if not line.startswith(b'data: '):continue
