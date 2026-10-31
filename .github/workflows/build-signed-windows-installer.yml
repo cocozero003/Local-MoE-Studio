@@ -10,6 +10,13 @@ jobs:
   build-sign:
     runs-on: windows-latest
     steps:
+      - name: Refuse private-data build in public repository
+        shell: pwsh
+        run: |
+          if ("\${{ github.event.repository.private }}" -ne "true") {
+            throw "This installer embeds controlled Thai FDA data. Run this workflow only in a private repository or build/sign locally."
+          }
+
       - name: Checkout
         uses: actions/checkout@v4
 
