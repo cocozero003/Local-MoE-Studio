@@ -30,10 +30,15 @@ from xml.etree import ElementTree
 from .backend import USER_DATA
 from .team_db import TeamDB
 from .thai_fda import analyze as fda_analyze, grounding_context as fda_grounding_context, status as fda_status
+from .update_manager import (
+    apply_online_update, apply_patch_pack, check_online_update,
+    data_status as fda_data_pack_status, install_data_pack, rollback_data,
+    software_status, stage_source_file,
+)
 
 LOG = logging.getLogger(__name__)
 WEB_ROOT = Path(__file__).resolve().parent / 'web'
-MAX_BODY = 8 * 1024 * 1024
+MAX_BODY = 64 * 1024 * 1024
 MAX_MESSAGE = 12000
 
 
@@ -273,6 +278,15 @@ class TeamHandler(BaseHTTPRequestHandler):
                                    'lan':self.server.lan})
         if path=='/api/fda/status':
             return self._json(200,fda_status())
+        if path=='/api/fda/manage/status':
+            if user['role']!='admin':return self._error(403,'Administrator only')
+            return self._json(200,{'runtime':fda_status(),'data':fda_data_pack_status(),
+                                   'software':software_status()})
+        if path=='/api/software/update/check':
+            if user['role']!='admin':return self._error(403,'Administrator only')
+            try:return self._json(200,check_online_update())
+            except (OSError,urllib.error.URLError,ValueError) as exc:
+                return self._error(503,'Could not check GitHub update: '+str(exc))
         if path=='/api/conversations':
             return self._json(200,{'items':db.conversations(user['id'])})
         match=re.fullmatch(r'/api/conversations/(\d+)',path)
@@ -368,6 +382,38 @@ class TeamHandler(BaseHTTPRequestHandler):
             except (ValueError,KeyError,binascii.Error,zipfile.BadZipFile,RuntimeError) as exc:
                 return self._error(400,str(exc))
             return self._json(201,{'id':doc_id,'name':name,'characters':len(text)})
+        if path=='/api/fda/data/import':
+            if user['role']!='admin':return self._error(403,'Administrator only')
+            try:
+                raw=base64.b64decode(str(data.get('content_base64','')),validate=True)
+                return self._json(200,install_data_pack(raw,str(data.get('name','data-pack.zip'))))
+            except (ValueError,binascii.Error,zipfile.BadZipFile,OSError) as exc:
+                return self._error(400,str(exc))
+        if path=='/api/fda/data/rollback':
+            if user['role']!='admin':return self._error(403,'Administrator only')
+            try:return self._json(200,rollback_data())
+            except (ValueError,OSError) as exc:return self._error(400,str(exc))
+        if path=='/api/fda/source/stage':
+            if user['role']!='admin':return self._error(403,'Administrator only')
+            try:
+                raw=base64.b64decode(str(data.get('content_base64','')),validate=True)
+                return self._json(200,stage_source_file(raw,str(data.get('name','source.csv'))))
+            except (ValueError,binascii.Error,OSError) as exc:
+                return self._error(400,str(exc))
+        if path=='/api/software/update/apply-online':
+            if user['role']!='admin':return self._error(403,'Administrator only')
+            if not self._local():return self._error(403,'Software updates can only be applied from localhost')
+            try:return self._json(200,apply_online_update())
+            except (ValueError,OSError,urllib.error.URLError,zipfile.BadZipFile) as exc:
+                return self._error(400,str(exc))
+        if path=='/api/software/patch/import':
+            if user['role']!='admin':return self._error(403,'Administrator only')
+            if not self._local():return self._error(403,'Software patches can only be applied from localhost')
+            try:
+                raw=base64.b64decode(str(data.get('content_base64','')),validate=True)
+                return self._json(200,apply_patch_pack(raw,str(data.get('name','software-patch.zip'))))
+            except (ValueError,binascii.Error,OSError,zipfile.BadZipFile) as exc:
+                return self._error(400,str(exc))
         if path=='/api/fda/analyze':
             try:
                 text=str(data.get('text','')).strip()
