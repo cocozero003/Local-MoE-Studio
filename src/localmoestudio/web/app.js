@@ -33,6 +33,7 @@ async function refreshIdentity() {
     await refreshChats(); await refreshDocuments(); await refreshKeys();
     if (me.role === 'admin') { await refreshUsers(); await refreshManageStatus(); }
     await checkModel(); await checkFDA(); setInterval(checkModel, 12000);
+    const stat=await request('/api/status'); if($('app-version')) $('app-version').textContent='v'+(stat.ui_version||'0.9.3');
     navigate('chat');
   } catch (_) {
     const setup = await request('/api/setup-required');
@@ -49,15 +50,15 @@ async function checkModel() {
 }
 async function checkFDA() {
   const option = $('chat-mode').querySelector('option[value="thai_fda"]');
+  option.disabled = false;
   try {
     const s = await request('/api/fda/status');
     state.fdaReady = Boolean(s.available);
-    option.disabled = !state.fdaReady;
     $('fda-mode-state').textContent = state.fdaReady ? 'V3.17 ready' : 'Thai FDA data/setup required';
     $('fda-mode-state').title = state.fdaReady ? s.engine : ((s.missing_files || []).join(', ') || s.dependency_error || 'Unavailable');
-    if (!state.fdaReady && $('chat-mode').value === 'thai_fda') $('chat-mode').value = 'general';
   } catch (_) {
-    state.fdaReady = false; option.disabled = true; $('fda-mode-state').textContent = 'Thai FDA mode unavailable';
+    state.fdaReady = false;
+    $('fda-mode-state').textContent = 'Thai FDA mode unavailable';
   }
 }
 function navigate(page) {
