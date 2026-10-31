@@ -169,7 +169,7 @@ def stage_source_file(raw: bytes, filename: str) -> dict:
     if Path(name).suffix.lower() not in {".csv",".xlsx",".zip",".json"}:
         raise ValueError("Accepted source files: CSV, XLSX, JSON or ZIP")
     INCOMING.mkdir(parents=True,exist_ok=True)
-    dest=INCOMING/(time.strftime("%Y%m%d_%H%M%S")+"_")+Path(name)
+    dest=INCOMING/(time.strftime("%Y%m%d_%H%M%S")+"_")+name
     dest.write_bytes(raw)
     return {"staged":True,"path":str(dest),"note":"Staged only; rebuild a validated data pack before it affects retrieval."}
 
