@@ -241,7 +241,7 @@ class TeamHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Length',str(len(body)))
         self.send_header('X-Content-Type-Options','nosniff')
         self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
-        self.send_header('Cache-Control','no-cache')
+        self.send_header('Cache-Control','no-store, max-age=0')
         self.end_headers(); self.wfile.write(body)
 
     def _backend(self,data,*,stream):
@@ -275,7 +275,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                                    'csrf':user.get('csrf')})
         if path=='/api/status':
             return self._json(200,{'backend_ready':self._is_ready(),'multi_user':True,
-                                   'lan':self.server.lan})
+                                   'lan':self.server.lan,'ui_version':'0.9.3'})
         if path=='/api/fda/status':
             return self._json(200,fda_status())
         if path=='/api/fda/manage/status':
