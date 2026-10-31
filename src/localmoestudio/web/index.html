@@ -13,6 +13,7 @@
 <button class="nav-btn current" data-page="chat">Chat</button>
 <button class="nav-btn" data-page="documents">My documents</button>
 <button class="nav-btn" data-page="settings">API access</button>
+<button class="nav-btn hidden" id="fda-update-nav" data-page="updates">Data & updates</button>
 <button class="nav-btn" id="admin-nav" data-page="users">Team members</button>
 <div class="nav-divider"></div><button class="secondary full" id="new-chat">New conversation</button>
 <div class="mini-label">RECENT CONVERSATIONS</div><div id="chat-list" class="chat-list"></div>
@@ -37,6 +38,24 @@
 <div class="panel"><button id="generate-key" class="primary">Create API key</button><div id="new-key" class="secret hidden"></div>
 <p class="info">Endpoint: <code id="endpoint">http://127.0.0.1:8765/v1</code></p></div><h2>My API keys</h2><div id="keys-list" class="rows"></div>
 <div class="notice">Keep keys private. LAN mode uses unencrypted HTTP: use only on a trusted network. Do not publish the server port to the internet.</div></div>
+<div id="page-updates" class="page content-page hidden"><h1>Thai FDA data & updates</h1>
+<p>Update the precedent dataset independently from the software. Every activated data pack is validated and the previous version is kept for rollback.</p>
+<div class="panel"><h2>Active Thai FDA data</h2>
+<div id="fda-data-status" class="update-status">Checking data status...</div>
+<label class="file-label">Validated Thai FDA data pack (.zip)<input type="file" id="fda-data-pack-file" accept=".zip"></label>
+<div class="inline"><button id="upload-fda-data-pack" class="primary">Validate and activate data pack</button>
+<button id="rollback-fda-data">Rollback previous data</button></div>
+<div id="fda-data-action-state" class="info"></div></div>
+<div class="panel"><h2>Add source files for the next dataset build</h2>
+<p>CSV, XLSX, JSON or ZIP files are staged only. They do not affect retrieval until a validated runtime data pack is built and activated.</p>
+<label class="file-label">Source file<input type="file" id="fda-source-file" accept=".csv,.xlsx,.json,.zip"></label>
+<button id="stage-fda-source">Stage source file</button><div id="fda-source-state" class="info"></div></div>
+<div class="panel"><h2>Software updates</h2>
+<div id="software-update-status" class="update-status">Checking software status...</div>
+<div class="inline"><button id="check-software-update">Check GitHub</button><button id="apply-online-update" class="primary">Apply online update</button></div>
+<p class="info">Software updates never replace the Thai FDA data folder. Restart Team Hub after applying an update.</p>
+<label class="file-label">Offline software patch (.zip)<input type="file" id="software-patch-file" accept=".zip"></label>
+<button id="upload-software-patch">Apply offline patch</button><div id="software-update-state" class="info"></div></div></div>
 <div id="page-users" class="page content-page hidden"><h1>Team members</h1><p>Create separate accounts to isolate each person's chats and documents.</p>
 <form id="add-user-form" class="panel inline-form"><label>Username<input id="new-username" required minlength="3" maxlength="30"></label>
 <label>Temporary password (12+ characters)<input id="new-password" type="password" required minlength="12"></label>
