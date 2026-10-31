@@ -28,9 +28,10 @@ async function refreshIdentity() {
     $('auth-view').classList.add('hidden'); $('application').classList.remove('hidden');
     $('account-name').textContent = me.username;
     $('admin-nav').classList.toggle('hidden', me.role !== 'admin');
+    $('fda-update-nav').classList.toggle('hidden', me.role !== 'admin');
     $('endpoint').textContent = location.origin + '/v1';
     await refreshChats(); await refreshDocuments(); await refreshKeys();
-    if (me.role === 'admin') await refreshUsers();
+    if (me.role === 'admin') { await refreshUsers(); await refreshManageStatus(); }
     await checkModel(); await checkFDA(); setInterval(checkModel, 12000);
     navigate('chat');
   } catch (_) {
@@ -60,9 +61,10 @@ async function checkFDA() {
   }
 }
 function navigate(page) {
-  ['chat','documents','settings','users'].forEach(p => $('page-' + p).classList.toggle('hidden', p !== page));
+  ['chat','documents','settings','updates','users'].forEach(p => $('page-' + p).classList.toggle('hidden', p !== page));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('current', b.dataset.page === page));
-  $('page-title').textContent = ({chat:'Chat',documents:'My documents',settings:'API access',users:'Team members'})[page];
+  $('page-title').textContent = ({chat:'Chat',documents:'My documents',settings:'API access',updates:'Data & updates',users:'Team members'})[page];
+  if (page==='updates' && state.user?.role==='admin') refreshManageStatus();
 }
 function renderMessage(role, content) {
   const div = escapeNode('div', '', 'message ' + (role === 'user' ? 'user' : 'assistant'));
@@ -206,6 +208,93 @@ async function refreshUsers() {
   const {items}=await request('/api/users');
   rowList('users-list',items,x=>itemWithAction(x.username,'  Role: '+x.role+' | Joined '+fmt(x.created),'',null));
 }
+async function fileBase64(file,maxBytes) {
+  if(!file) throw new Error('Choose a file first');
+  if(file.size>maxBytes) throw new Error('File is too large');
+  return await new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(String(reader.result).split(',')[1]);
+    reader.onerror=reject; reader.readAsDataURL(file);
+  });
+}
+async function refreshManageStatus() {
+  if(state.user?.role!=='admin') return;
+  try {
+    const s=await request('/api/fda/manage/status');
+    const d=s.data||{}, sw=s.software||{}, rt=s.runtime||{};
+    $('fda-data-status').textContent =
+      'Runtime: '+(rt.available?'ready':'not ready')+
+      ' | Data version: '+(d.data_version||'unversioned')+
+      ' | Backup: '+(d.backup_available?'available':'none')+
+      ' | '+(d.data_dir||'');
+    $('software-update-status').textContent =
+      'Software '+(sw.version||'unknown')+
+      (sw.commit?' | commit '+sw.commit.slice(0,10):'')+
+      ' | '+(sw.source_root||'');
+  } catch(e) {
+    $('fda-data-status').textContent=e.message;
+    $('software-update-status').textContent=e.message;
+  }
+}
+async function uploadFDADataPack() {
+  const file=$('fda-data-pack-file').files[0];
+  $('upload-fda-data-pack').disabled=true;
+  try {
+    $('fda-data-action-state').textContent='Reading and validating data pack...';
+    const b64=await fileBase64(file,32*1024*1024);
+    const result=await request('/api/fda/data/import',{method:'POST',data:{name:file.name,content_base64:b64}});
+    $('fda-data-action-state').textContent='Activated data version '+(result.data_version||'unversioned')+'. Previous version kept for rollback.';
+    $('fda-data-pack-file').value=''; await checkFDA(); await refreshManageStatus();
+  } catch(e) {$('fda-data-action-state').textContent=e.message;}
+  finally {$('upload-fda-data-pack').disabled=false;}
+}
+async function rollbackFDAData() {
+  if(!confirm('Rollback to the previous Thai FDA data pack?')) return;
+  try {
+    const r=await request('/api/fda/data/rollback',{method:'POST',data:{}});
+    $('fda-data-action-state').textContent='Rolled back. Active data version: '+(r.data_version||'unversioned');
+    await checkFDA(); await refreshManageStatus();
+  } catch(e) {$('fda-data-action-state').textContent=e.message;}
+}
+async function stageFDASource() {
+  const file=$('fda-source-file').files[0];
+  try {
+    $('fda-source-state').textContent='Staging source file...';
+    const b64=await fileBase64(file,32*1024*1024);
+    const r=await request('/api/fda/source/stage',{method:'POST',data:{name:file.name,content_base64:b64}});
+    $('fda-source-state').textContent=r.note+' Saved to '+r.path;
+    $('fda-source-file').value='';
+  } catch(e) {$('fda-source-state').textContent=e.message;}
+}
+async function checkSoftwareUpdate() {
+  try {
+    $('software-update-state').textContent='Checking GitHub...';
+    const r=await request('/api/software/update/check');
+    $('software-update-state').textContent =
+      r.update_available ? 'Update available: '+r.remote_commit.slice(0,10)+' — '+r.remote_message :
+      'Software is current. Remote commit '+(r.remote_commit||'unknown').slice(0,10);
+  } catch(e) {$('software-update-state').textContent=e.message;}
+}
+async function applyOnlineUpdate() {
+  if(!confirm('Apply the latest Local MoE Studio source update? Thai FDA data will not be replaced. Restart Team Hub afterwards.')) return;
+  try {
+    $('software-update-state').textContent='Downloading and applying update...';
+    const r=await request('/api/software/update/apply-online',{method:'POST',data:{}});
+    $('software-update-state').textContent='Update applied. Backup: '+r.backup+'. Restart Team Hub now.';
+    await refreshManageStatus();
+  } catch(e) {$('software-update-state').textContent=e.message;}
+}
+async function uploadSoftwarePatch() {
+  const file=$('software-patch-file').files[0];
+  if(!confirm('Apply this software patch? Thai FDA data will not be replaced.')) return;
+  try {
+    $('software-update-state').textContent='Validating and applying patch...';
+    const b64=await fileBase64(file,20*1024*1024);
+    const r=await request('/api/software/patch/import',{method:'POST',data:{name:file.name,content_base64:b64}});
+    $('software-update-state').textContent='Patch applied. Backup: '+r.backup+'. Restart Team Hub.';
+    $('software-patch-file').value=''; await refreshManageStatus();
+  } catch(e) {$('software-update-state').textContent=e.message;}
+}
 window.addEventListener('DOMContentLoaded',()=>{
   $('auth-form').addEventListener('submit',async e=>{ e.preventDefault();$('auth-error').textContent='';
     try {await request(state.setup?'/api/setup':'/api/login',{method:'POST',data:{username:$('login-name').value,password:$('login-pass').value}});await refreshIdentity();}
@@ -220,6 +309,12 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('search-doc').addEventListener('click',searchDocuments);
   $('generate-key').addEventListener('click',async()=>{try {const result=await request('/api/keys',{method:'POST',data:{}});
     $('new-key').textContent=result.api_key; $('new-key').classList.remove('hidden');await refreshKeys();}catch(e){notify(e.message);}});
+  $('upload-fda-data-pack').addEventListener('click',uploadFDADataPack);
+  $('rollback-fda-data').addEventListener('click',rollbackFDAData);
+  $('stage-fda-source').addEventListener('click',stageFDASource);
+  $('check-software-update').addEventListener('click',checkSoftwareUpdate);
+  $('apply-online-update').addEventListener('click',applyOnlineUpdate);
+  $('upload-software-patch').addEventListener('click',uploadSoftwarePatch);
   $('add-user-form').addEventListener('submit',async e=>{e.preventDefault();try{
     await request('/api/users',{method:'POST',data:{username:$('new-username').value,password:$('new-password').value}});
     $('add-user-form').reset();await refreshUsers();notify('Team member created');}catch(err){notify(err.message);}});
