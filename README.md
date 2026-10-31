@@ -2,9 +2,9 @@
 
 **A beginner-friendly Windows desktop GUI for running GGUF language models with llama.cpp, including MoE expert offloading to system RAM.**
 
-> **Status: v0.9.0 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
+> **Status: v0.9.2 alpha / multi-user preview.** Source and unit tests are available. It has **not** completed Windows CUDA hardware validation or public-distribution security testing.
 
-## Thai FDA precedent mode (v0.9.0)
+## Thai FDA precedent mode (v0.9.2)
 
 Local MoE Studio Team Hub can now run the Thai FDA V3.16/V3.17 precedent workflow inside the same ChatGPT-style browser chat.
 
@@ -18,6 +18,11 @@ Local MoE Studio Team Hub can now run the Thai FDA V3.16/V3.17 precedent workflo
 - After setup, `START_THAI_FDA_TEAM_HUB_WINDOWS.bat` verifies the V3.17 runtime data before starting the normal Team Hub on port 8765.
 
 See [docs/THAI_FDA_PRECEDENT.md](docs/THAI_FDA_PRECEDENT.md).
+
+### Data & updates
+
+Team Hub administrators now have a **Data & updates** page. A validated Thai FDA runtime data-pack ZIP can be uploaded and activated without reinstalling the application; the previous pack is retained for one-click rollback. Raw CSV/XLSX/JSON/ZIP source files can be staged separately for the next controlled dataset rebuild. Software can be checked and updated from the public GitHub source, or updated with an offline patch ZIP. Software updates never replace the Thai FDA data directory, and software-apply actions are restricted to the localhost administrator.
+
 
 ## Large dense model support (v0.8.5)
 
